@@ -125,3 +125,99 @@ async def test_list_telemetry_for_missing_vehicle_raises_not_found(
 ) -> None:
     with pytest.raises(NotFoundError):
         await service.list_vehicle_telemetry(uuid4(), page=1, page_size=10)
+
+
+async def test_duplicate_source_event_skipped(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    data = TelemetryCreate(
+        timestamp=datetime.now(UTC),
+        rpm=1500.0,
+        source_event_id="event-1",
+    )
+    first = await service.create_telemetry(existing_vehicle, data)
+    second = await service.create_telemetry(existing_vehicle, data)
+
+    assert first.id == second.id
+    items, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=10)
+    assert total == 1
+
+
+async def test_distinct_source_events_both_created(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    await service.create_telemetry(
+        existing_vehicle,
+        TelemetryCreate(timestamp=datetime.now(UTC), rpm=100.0, source_event_id="event-1"),
+    )
+    await service.create_telemetry(
+        existing_vehicle,
+        TelemetryCreate(timestamp=datetime.now(UTC), rpm=200.0, source_event_id="event-2"),
+    )
+
+    _, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=10)
+    assert total == 2
+
+
+async def test_same_source_event_allowed_across_vehicles(
+    session: AsyncSession, existing_vehicle: UUID
+) -> None:
+    other_service = TelemetryService(
+        session=session,
+        repository=TelemetryRepository(session),
+        vehicle_repository=VehicleRepository(session),
+    )
+    other_vehicle = await VehicleService(session, VehicleRepository(session)).create_vehicle(
+        VehicleCreate(vin=unique_vin(), make="Honda", model="Accord", year=2022)
+    )
+
+    data = TelemetryCreate(timestamp=datetime.now(UTC), rpm=900.0, source_event_id="shared")
+    await other_service.create_telemetry(existing_vehicle, data)
+    await other_service.create_telemetry(other_vehicle.id, data)
+
+    _, total = await other_service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=10)
+    assert total == 1
+    _, total = await other_service.list_vehicle_telemetry(other_vehicle.id, page=1, page_size=10)
+    assert total == 1
+
+
+async def test_integrity_error_backstop_returns_existing(
+    session_factory, existing_vehicle: UUID
+) -> None:
+    """Simulates the concurrent-write race: the pre-check misses the row, the
+    insert hits the unique constraint, and the service recovers by returning
+    the existing record from the IntegrityError handler."""
+    data = TelemetryCreate(timestamp=datetime.now(UTC), rpm=10.0, source_event_id="dup")
+
+    async with session_factory() as session:
+        service = TelemetryService(
+            session,
+            TelemetryRepository(session),
+            VehicleRepository(session),
+        )
+        created = await service.create_telemetry(existing_vehicle, data)
+
+    async with session_factory() as session:
+        repository = TelemetryRepository(session)
+        original = repository.get_by_source_event
+        calls = 0
+
+        async def racing_precheck(vehicle_id, source_event_id):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return None  # race: another writer committed after our pre-check
+            return await original(vehicle_id, source_event_id)
+
+        repository.get_by_source_event = racing_precheck  # type: ignore[method-assign]
+        service = TelemetryService(session, repository, VehicleRepository(session))
+        result = await service.create_telemetry(existing_vehicle, data)
+
+    assert result.id == created.id
+    assert calls >= 2
+
+    async with session_factory() as session:
+        _, total = await TelemetryService(
+            session, TelemetryRepository(session), VehicleRepository(session)
+        ).list_vehicle_telemetry(existing_vehicle, page=1, page_size=10)
+        assert total == 1

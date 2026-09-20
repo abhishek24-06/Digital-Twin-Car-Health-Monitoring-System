@@ -36,5 +36,77 @@ services:
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: digital-twin-mosquitto
+    environment:
+      # Development-only broker credentials (override via .env).
+      MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt}
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./infrastructure/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infrastructure/mosquitto/mosquitto.acl:/mosquitto/config/mosquitto.acl:ro
+      - mqtt-data:/mosquitto/data
+    # Generate the dev password file from MQTT_USERNAME/MQTT_PASSWORD before
+    # starting the broker. The file lives on the container filesystem, not the
+    # host mount.
+    command: >
+      sh -c "mosquitto_passwd -b -c /mosquitto/config/mosquitto.passwd
+             \"$${MQTT_USERNAME}\" \"$${MQTT_PASSWORD}\" &&
+             exec mosquitto -c /mosquitto/config/mosquitto.conf"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mosquitto_sub -h 127.0.0.1 -p 1883
+          -u "$${MQTT_USERNAME}" -P "$${MQTT_PASSWORD}"
+          -t "$$SYS/broker/uptime" -E -W 3 >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  mqtt-subscriber:
+    build: .
+    container_name: digital-twin-mqtt-subscriber
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      DEBUG: "false"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt}
+      MQTT_CLIENT_ID: digital-twin-subscriber
+    command: python -m app.mqtt.subscriber
+    restart: unless-stopped
+
+  simulator:
+    build: .
+    container_name: digital-twin-simulator
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    environment:
+      SIMULATOR_VEHICLE_ID: ${SIMULATOR_VEHICLE_ID:-11111111-2222-4333-8444-555555555555}
+      SIMULATOR_INTERVAL_SECONDS: ${SIMULATOR_INTERVAL_SECONDS:-1}
+      SIMULATOR_SCENARIO: ${SIMULATOR_SCENARIO:-normal}
+      SIMULATOR_SEED: ${SIMULATOR_SEED:-42}
+      MQTT_BROKER_HOST: mosquitto
+      MQTT_BROKER_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt}
+      MQTT_CLIENT_ID: digital-twin-simulator
+    command: python -m simulator.main
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  mqtt-data:

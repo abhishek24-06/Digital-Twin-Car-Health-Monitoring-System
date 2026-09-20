@@ -21,6 +21,15 @@ class TelemetryRepository:
         await self._session.refresh(record)
         return record
 
+    async def get_by_source_event(
+        self, vehicle_id: UUID, source_event_id: str
+    ) -> TelemetryRecord | None:
+        statement = select(TelemetryRecord).where(
+            TelemetryRecord.vehicle_id == vehicle_id,
+            TelemetryRecord.source_event_id == source_event_id,
+        )
+        return await self._session.scalar(statement)
+
     async def list_by_vehicle(
         self,
         vehicle_id: UUID,

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 # database URL and test environment are set before that happens.
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/digital_twin_test",
+    "postgresql+asyncpg://postgres:root@127.0.0.1:5432/digital_twin_test",
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["APP_ENV"] = "test"

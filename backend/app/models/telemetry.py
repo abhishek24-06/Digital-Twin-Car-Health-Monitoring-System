@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -46,6 +46,8 @@ class TelemetryRecord(UUIDPrimaryKeyMixin, Base):
 
     raw_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    source_event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -59,6 +61,13 @@ class TelemetryRecord(UUIDPrimaryKeyMixin, Base):
 
     __table_args__ = (
         Index("ix_telemetry_records_vehicle_id_timestamp", "vehicle_id", "timestamp"),
+        Index(
+            "uq_telemetry_records_vehicle_source_event",
+            "vehicle_id",
+            "source_event_id",
+            unique=True,
+            postgresql_where=text("source_event_id IS NOT NULL"),
+        ),
     )
 
     def __repr__(self) -> str:

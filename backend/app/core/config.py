@@ -23,6 +23,18 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # MQTT ingestion (Phase 2)
+    mqtt_broker_host: str = "localhost"
+    mqtt_broker_port: int = 1883
+    mqtt_username: str | None = None
+    mqtt_password: str | None = None
+    mqtt_client_id: str = "digital-twin-subscriber"
+    mqtt_keepalive: int = 60
+    mqtt_qos: int = 1
+    mqtt_topic_prefix: str = "vehicles"
+    mqtt_reconnect_max_seconds: float = 30.0
+    mqtt_message_retry_attempts: int = 3
+
     @property
     def is_debug(self) -> bool:
         return self.debug

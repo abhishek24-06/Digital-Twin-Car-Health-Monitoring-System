@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "digital-twin-api"
 version = "0.1.0"
-description = "Digital Twin - Car Health Monitoring Platform (Phase 1 backend)"
+description = "Digital Twin - Car Health Monitoring Platform (backend)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -16,6 +16,7 @@ dependencies = [
     "alembic>=1.14.0",
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
+    "aiomqtt>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -27,12 +28,15 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "simulator*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not mqtt_e2e'"
+markers = [
+    "mqtt_e2e: requires a running MQTT broker (runs with `make mqtt-test`)",
+]
 
 [tool.ruff]
 target-version = "py312"

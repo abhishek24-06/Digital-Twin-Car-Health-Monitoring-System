@@ -14,6 +14,8 @@ RUN apt-get update \
 COPY pyproject.toml README.md alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app
+COPY simulator ./simulator
+COPY scripts ./scripts
 
 RUN pip install --no-cache-dir -e .
 

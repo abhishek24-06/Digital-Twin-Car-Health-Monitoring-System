@@ -1,0 +1,4 @@
+# Local development ACL. The dev user may read and write the two platform
+# topic families. Adjust for production deployments.
+user mqtt
+topic readwrite vehicles/#
