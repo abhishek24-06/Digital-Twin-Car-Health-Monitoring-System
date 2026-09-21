@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.health_snapshot import HealthSnapshot
     from app.models.telemetry import TelemetryRecord
 
 
@@ -28,6 +29,12 @@ class Vehicle(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     engine_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     telemetry_records: Mapped[list[TelemetryRecord]] = relationship(
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    health_snapshots: Mapped[list[HealthSnapshot]] = relationship(
         back_populates="vehicle",
         cascade="all, delete-orphan",
         passive_deletes=True,

@@ -11,8 +11,12 @@ on Windows, and in production the simulator is a separate process anyway.
 """
 
 import asyncio
+import re
 import socket
 import subprocess
+import sys
+import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -138,3 +142,75 @@ def test_mqtt_message_reaches_postgres(session_factory, sample_vehicle) -> None:
         loop.run_until_complete(_run_case(session_factory, sample_vehicle))
     finally:
         loop.close()
+
+
+def test_two_subscriber_processes_do_not_session_takeover() -> None:
+    """Regression: two subscriber instances must not disconnect each other.
+
+    With a fixed client id, the second process performs an MQTT session
+    takeover and both processes enter an endless reconnect flap that crashes
+    the Windows SelectorEventLoop with ``OSError: [WinError 10038]``. Spawn
+    two real subscriber processes and assert both stay connected - no
+    disconnects, reconnects or crashes.
+    """
+    settings = Settings()
+    if not _broker_reachable(settings.mqtt_broker_host, settings.mqtt_broker_port):
+        pytest.skip(f"no MQTT broker at {settings.mqtt_broker_host}:{settings.mqtt_broker_port}")
+
+    backend_dir = Path(__file__).resolve().parents[2]
+    processes: list[subprocess.Popen] = []
+    log_paths: list[Path] = []
+
+    try:
+        for _ in range(2):
+            log_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".log", delete=False, dir=tempfile.gettempdir()
+            )
+            log_file.close()
+            log_paths.append(Path(log_file.name))
+            with open(log_file.name, "w", encoding="utf-8") as stream:
+                processes.append(
+                    subprocess.Popen(
+                        [sys.executable, "-m", "app.mqtt.subscriber"],
+                        cwd=backend_dir,
+                        stdout=stream,
+                        stderr=subprocess.STDOUT,
+                    )
+                )
+
+        deadline = time.monotonic() + 25.0
+        while time.monotonic() < deadline:
+            state = [content(path) for path in log_paths]
+            if all("Connected to" in text for text in state):
+                break
+            time.sleep(0.5)
+
+        # A session takeover disconnects the first subscriber within ~1s of the
+        # second connecting. Observe both processes for a few more seconds so a
+        # takeover/disconnect has time to surface in the logs before asserting.
+        time.sleep(5.0)
+
+        logs = [content(path) for path in log_paths]
+        for index, text in enumerate(logs, start=1):
+            assert "Connected to" in text, f"subscriber {index} never connected"
+            assert "Disconnected during message iteration" not in text, (
+                f"subscriber {index} lost its connection"
+            )
+            assert "Reconnecting to MQTT broker" not in text, (
+                f"subscriber {index} entered a reconnect flap"
+            )
+            assert re.search(r"WinError 10038|Traceback", text) is None, (
+                f"subscriber {index} crashed"
+            )
+    finally:
+        for process in processes:
+            process.terminate()
+        for process in processes:
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+
+def content(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")

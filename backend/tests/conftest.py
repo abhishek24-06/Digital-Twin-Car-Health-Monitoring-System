@@ -52,7 +52,10 @@ async def _ensure_test_database_exists() -> None:
 async def _truncate_all() -> None:
     async with get_engine().begin() as conn:
         await conn.execute(
-            text("TRUNCATE TABLE telemetry_records, vehicles RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE TABLE vehicle_health_snapshots, telemetry_records, vehicles "
+                "RESTART IDENTITY CASCADE"
+            )
         )
 
 

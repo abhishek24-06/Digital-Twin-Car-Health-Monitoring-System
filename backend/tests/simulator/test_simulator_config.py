@@ -48,3 +48,22 @@ def test_accepts_keyword_vehicle_id() -> None:
     vehicle_id = uuid4()
     settings = SimulatorSettings(vehicle_id=vehicle_id)
     assert settings.vehicle_id == vehicle_id
+
+
+def test_default_client_id_is_unique_per_instance() -> None:
+    first = SimulatorSettings(vehicle_id=uuid4()).mqtt_client_id
+    second = SimulatorSettings(vehicle_id=uuid4()).mqtt_client_id
+
+    assert first != second
+    assert first.startswith("dtwin-sim-")
+    assert second.startswith("dtwin-sim-")
+    # MQTTv3.1.1 brokers reject client ids longer than 23 bytes.
+    assert len(first) <= 23
+    assert len(second) <= 23
+
+
+def test_explicit_client_id_is_used_verbatim(monkeypatch) -> None:
+    monkeypatch.setenv("MQTT_CLIENT_ID", "my-stable-simulator")
+
+    settings = SimulatorSettings(vehicle_id=uuid4())
+    assert settings.mqtt_client_id == "my-stable-simulator"

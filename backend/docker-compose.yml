@@ -84,7 +84,6 @@ services:
       MQTT_BROKER_PORT: "1883"
       MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt}
-      MQTT_CLIENT_ID: digital-twin-subscriber
     command: python -m app.mqtt.subscriber
     restart: unless-stopped
 
@@ -103,7 +102,6 @@ services:
       MQTT_BROKER_PORT: "1883"
       MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
       MQTT_PASSWORD: ${MQTT_PASSWORD:-mqtt}
-      MQTT_CLIENT_ID: digital-twin-simulator
     command: python -m simulator.main
     restart: unless-stopped
 

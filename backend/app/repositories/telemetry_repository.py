@@ -58,3 +58,31 @@ class TelemetryRepository:
         )
         result = await self._session.scalars(statement)
         return list(result.all()), int(total or 0)
+
+    async def get_recent_telemetry(
+        self,
+        vehicle_id: UUID,
+        *,
+        start_time: datetime,
+        end_time: datetime,
+        limit: int | None = None,
+    ) -> list[TelemetryRecord]:
+        """Efficiently retrieve a chronological telemetry window.
+
+        Inclusive bounds on ``timestamp``; ordered oldest-first. Uses the
+        existing ``(vehicle_id, timestamp)`` index. ``limit`` bounds the rows
+        a caller may load.
+        """
+        statement = (
+            select(TelemetryRecord)
+            .where(
+                TelemetryRecord.vehicle_id == vehicle_id,
+                TelemetryRecord.timestamp >= start_time,
+                TelemetryRecord.timestamp <= end_time,
+            )
+            .order_by(TelemetryRecord.timestamp.asc(), TelemetryRecord.id.asc())
+        )
+        if limit is not None:
+            statement = statement.limit(limit)
+        result = await self._session.scalars(statement)
+        return list(result.all())

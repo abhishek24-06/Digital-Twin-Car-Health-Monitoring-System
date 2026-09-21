@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from functools import lru_cache
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -72,7 +72,9 @@ class SimulatorSettings(BaseSettings):
     mqtt_broker_port: int = 1883
     mqtt_username: str | None = None
     mqtt_password: str | None = None
-    mqtt_client_id: str = "digital-twin-simulator"
+    # Unique per process so two simulator instances cannot *session-takeover*
+    # each other; an explicit MQTT_CLIENT_ID is honored verbatim instead.
+    mqtt_client_id: str = Field(default_factory=lambda: f"dtwin-sim-{uuid4().hex[:8]}")
     mqtt_keepalive: int = 60
     mqtt_qos: int = 1
     mqtt_topic_prefix: str = "vehicles"

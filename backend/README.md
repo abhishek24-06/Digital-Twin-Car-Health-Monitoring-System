@@ -4,7 +4,11 @@ Production-oriented FastAPI backend for the Digital Twin car health monitoring
 platform. **Phase 2** adds an MQTT telemetry ingestion pipeline on top of the
 Phase 1 foundation: a deterministic vehicle simulator publishes telemetry
 envelopes through a Mosquitto broker, an MQTT subscriber validates and stores
-them in PostgreSQL.
+them in PostgreSQL. **Phase 3** adds a deterministic, explainable **Vehicle
+Health Context** engine that analyses a configurable historical telemetry
+window (statistics → trends → baselines → rules → health score → confidence),
+persists every analysis as an immutable snapshot in PostgreSQL, and exposes
+it through a REST API.
 
 ## 1. Project overview
 
@@ -58,6 +62,26 @@ code the MQTT subscriber uses.
 - Makefile targets, `.env.example`, pytest suite (unit + database + real-broker
   e2e), this documentation
 
+**Phase 3 (vehicle health intelligence):**
+- `app/intelligence/` deterministic, deterministic context engine — no LLM:
+  statistics (`statistics.py`), trends (`trends.py`), vehicle baselines
+  (`baselines.py`), rule engine (`rules.py`), scoring + confidence
+  (`scoring.py`), context assembly (`context.py`), orchestration (`engine.py`)
+- Transport-agnostic typed analysis: the engine consumes
+  `TelemetryPoint(timestamp, values)` and never touches the DB/MQTT/API, so it
+  works identically for MQTT, REST, replay, tests and historical data
+- `vehicle_health_snapshots` table (Alembic migration) stores every generated
+  context as JSONB; snapshots are immutable historical evidence — re-analysis
+  creates a new snapshot and never mutates old ones
+- `VehicleHealthService` loads a configurable analysis window plus a bounded
+  historical baseline window and persists the resulting `HealthSnapshot`
+- New REST endpoints: `POST /vehicles/{id}/health/analyze`,
+  `GET /vehicles/{id}/health`, `GET /vehicles/{id}/health/history`
+- Test coverage: pure-intelligence unit tests, repository, service and API
+  tests, plus real-broker simulated scenarios validated against the analyzer
+- `HEALTH_*` settings (analysis window, minimum samples, expected interval,
+  baseline window, baseline minimum samples)
+
 **Not implemented (later phases):** LangGraph/LangChain, LLM calls, RAG,
 pgvector/embeddings, ML prediction, dashboard, authentication/JWT, and report
 generation.
@@ -77,6 +101,24 @@ REST API routes ─────────────────────�
                                                     │
                                                   PostgreSQL
 ```
+
+Phase 3 adds an analysis path on top of the same layers:
+
+```
+REST API (health_analyze) ─> VehicleHealthService
+                                  │  window + baseline loading (telemetry_repository)
+                                  v
+                       HealthAnalysisEngine (app/intelligence)
+                          statistics → trends → baselines → rules
+                          → scoring → confidence → HealthContext
+                                  │
+                                  v
+                       HealthSnapshotRepository → vehicle_health_snapshots (JSONB)
+```
+
+The intelligence engine contains no persistence or transport logic; the
+service is the only layer that translates ORM records into typed
+`TelemetryPoint` samples.
 
 The subscriber contains no persistence logic: it decodes/validates MQTT
 payloads and calls `TelemetryService.create_telemetry()` exactly like the REST
@@ -121,6 +163,15 @@ backend/
 │   │   ├── subscriber.py        # Reconnect/backoff loop + `python -m` entry
 │   │   ├── client.py            # aiomqtt client factory + asyncio loop helpers
 │   │   └── exceptions.py
+│   ├── intelligence/             # Phase 3 health engine (no LLM, pure + typed)
+│   │   ├── models.py             # HealthContext, MetricStatistics, Finding, ...
+│   │   ├── statistics.py         # Robust summary statistics (never NaN/Inf)
+│   │   ├── trends.py             # OLS slope + normalized slope (direction/strength)
+│   │   ├── baselines.py          # Median + scaled MAD vs. window last value
+│   │   ├── rules.py              # RuleThresholds + HealthRuleEngine
+│   │   ├── scoring.py            # Health score + status + confidence model
+│   │   ├── context.py            # HealthContext assembly
+│   │   └── engine.py             # HealthAnalysisEngine pipeline
 │   ├── models/  ├── schemas/  ├── repositories/  ├── services/
 │   └── dependencies/
 ├── simulator/                   # Phase 2 vehicle simulator
@@ -169,6 +220,10 @@ cp .env.example .env
 clearly at startup if `DATABASE_URL` is missing; the simulator fails clearly if
 `SIMULATOR_VEHICLE_ID` is missing. All values can be supplied as real
 environment variables.
+
+`HEALTH_ANALYSIS_WINDOW_MINUTES`/`HEALTH_MINIMUM_SAMPLES`/`HEALTH_EXPECTED_INTERVAL_SECONDS`/
+`HEALTH_BASELINE_WINDOW_MINUTES`/`HEALTH_BASELINE_MINIMUM_SAMPLES` (see
+`.env.example`).
 
 ## 7. MQTT message format
 
@@ -283,7 +338,7 @@ container. Simulator defaults to the seeded demo vehicle id
 > forever if the broker is down, and restart (unless-stopped) if the container
 > itself dies.
 
-## 10. Database schema & migrations
+## 11. Database schema & migrations
 
 Migrations are autogenerated from the SQLAlchemy models.
 
@@ -307,7 +362,78 @@ Phase 2 telemetry migration (`<revision>_add_source_event_id...`):
 `TelemetryCreate` (REST) accepts an optional `source_event_id`, so REST and
 MQTT ingestion share the same idempotency semantics.
 
-## 11. Running tests
+Phase 3 health migration (`a1b2c3d4e5f6_create_vehicle_health_snapshots`):
+
+- creates `vehicle_health_snapshots` with the full generated context in
+  `context_json` (JSONB) plus queryable top-level columns
+  (`health_score`, `health_status`, `confidence`, `window_*`, `sample_count`)
+- foreign key `vehicle_id → vehicles.id` with `ON DELETE CASCADE`
+- composite indexes `(vehicle_id, generated_at)` and
+  `(vehicle_id, health_status, generated_at)`
+- `downgrade` drops the table
+
+## 12. Vehicle Health Context (Phase 3)
+
+Analysis is only ever triggered explicitly — there is no scheduler, no
+long-running job, and no background worker. Anyone can request a health
+snapshot at any time for any vehicle.
+
+### Analysis pipeline (deterministic, explainable)
+
+```
+window + baseline telemetry (PostgreSQL)
+   -> HealthAnalysisEngine
+        statistics  robust mean/median/min/max/IQR/std-dev/CV per metric
+        trends      OLS slope + normalized slope -> increasing/decreasing/stable
+        baselines   median + 1.4826*MAD of the vehicle's own history
+                    -> within / elevated / depressed (|dev| > 2.0)
+        rules       configured thresholds -> factual findings (never a diagnosis)
+        scoring     100 - penalties (info=0, warning=10, critical=30), 40/category cap
+        confidence  data-quality confidence in the ASSESSMENT (not health probability)
+   -> HealthContext (typed, versioned, JSON-serialisable)
+```
+
+Each rule finding states what the telemetry shows (e.g. "coolant temperature
+is significantly elevated") — never a mechanical diagnosis ("water pump
+failed"). Rule thresholds are centralized in
+`app/intelligence/rules.py::RuleThresholds` and are documented in the product
+flow as configurable.
+
+### Health score & status
+
+- Score starts at 100; each finding deducts `info=0 / warning=10 / critical=30`,
+  per-category penalties capped at 40 so no single discipline can dominate.
+- Status: `score ≥ 80 → healthy`, `60 ≤ score < 80 → attention`,
+  `< 60 → critical`; insufficient data (`< HEALTH_MINIMUM_SAMPLES`) → `unknown`.
+- `confidence` (0–1) measures confidence *in the telemetry-based assessment*
+  (coverage, duration, sample sufficiency, metric completeness) — explicitly
+  NOT the probability that the vehicle is healthy.
+
+### Health endpoints
+
+| Method | Path                                        | Description                             |
+| ------ | ------------------------------------------- | --------------------------------------- |
+| POST   | `/api/v1/vehicles/{id}/health/analyze`      | Analyze a window, persist, return context (optional `window_minutes` 1–1440) |
+| GET    | `/api/v1/vehicles/{id}/health`              | Latest persisted context (404 if none)  |
+| GET    | `/api/v1/vehicles/{id}/health/history`      | Paginated history (newest first, time filter) |
+
+```bash
+# Analyze the last 15 minutes (default) of the demo vehicle:
+curl -X POST http://localhost:8000/api/v1/vehicles/11111111-2222-4333-8444-555555555555/health/analyze
+
+# ...or an explicit 5-minute window:
+curl -X POST "http://localhost:8000/api/v1/vehicles/<vehicle_id>/health/analyze?window_minutes=5"
+
+# Latest context + history:
+curl http://localhost:8000/api/v1/vehicles/<vehicle_id>/health
+curl "http://localhost:8000/api/v1/vehicles/<vehicle_id>/health/history?page=1&page_size=20"
+```
+
+The `window_minutes` default comes from `HEALTH_ANALYSIS_WINDOW_MINUTES`
+(15 default). Baseline history is loaded from the `HEALTH_BASELINE_WINDOW_MINUTES`
+(6 h default) immediately before the analysis window.
+
+## 13. Running tests
 
 ```bash
 set TEST_DATABASE_URL=postgresql+asyncpg://postgres:root@localhost:5432/digital_twin_test
@@ -322,24 +448,27 @@ The suite:
   between tests, tears down afterwards
 - **unit**: MQTT topic build/parse, envelope validation (ranges, timezone,
   unknown fields), parser, simulator state-machine/physical invariants, and
-  simulator config/env handling
+  simulator config/env handling; plus `tests/intelligence/` (statistics,
+  trends, baselines, rule engine, scoring, engine/context)
 - **service/repository**: idempotent ingestion (duplicate `source_event_id`),
-  including the concurrent IntegrityError path
-- **API**: all Phase 1 endpoint tests still pass unchanged
+  including the concurrent IntegrityError path; health snapshot persistence,
+  pagination and `VehicleHealthService` analysis
+- **API**: all Phase 1/2 endpoint tests still pass unchanged; Phase 3 health
+  analysis/latest/history endpoint tests
 - **subscriber (mocked MQTT)**: valid → persisted; duplicate → skipped;
   invalid JSON / envelope/topic mismatch / unknown vehicle → skipped without
   raising
 - **e2e (`mqtt_e2e`)**: publishes a real envelope to a real broker and asserts
   the record lands in PostgreSQL; skips gracefully when no broker is reachable
 
-## 12. Linting / formatting
+## 14. Linting / formatting
 
 ```bash
 ruff check .                 # or: make lint
 ruff format .                # fix + format: make format
 ```
 
-## 13. API documentation
+## 15. API documentation
 
 Interactive docs are served by FastAPI:
 
@@ -360,10 +489,13 @@ Interactive docs are served by FastAPI:
 | DELETE | `/api/v1/vehicles/{id}`               | Delete vehicle (cascade telemetry) |
 | GET    | `/api/v1/vehicles/{id}/telemetry`     | List telemetry (paginated, time filter) |
 | POST   | `/api/v1/vehicles/{id}/telemetry`     | Store a telemetry sample (201)     |
+| POST   | `/api/v1/vehicles/{id}/health/analyze`| Analyze + persist a health snapshot (window_minutes 1–1440) |
+| GET    | `/api/v1/vehicles/{id}/health`        | Latest persisted health context     |
+| GET    | `/api/v1/vehicles/{id}/health/history`| Paginated health snapshot history   |
 
 All routes are versioned under `/api/v1`.
 
-## 14. Example API requests
+## 16. Example API requests
 
 ```bash
 # Health
@@ -415,7 +547,7 @@ curl "http://localhost:8000/api/v1/vehicles/<vehicle_id>/telemetry?page=1&page_s
 }
 ```
 
-## 15. Simulator behavior
+## 17. Simulator behavior
 
 The simulator cycles the vehicle through a deterministic drive cycle at a fixed
 interval:
@@ -432,17 +564,17 @@ reproducible.
 
 Fault scenarios:
 
-| Scenario          | Effect                                            |
-| ----------------- | ------------------------------------------------ |
-| `normal`          | Nominal operating ranges                         |
-| `high_temperature`| Coolant/oil targets climb (~115 °C coolant)      |
-| `low_battery`     | Running/battery set-points collapse (~11.9 V)    |
-| `high_engine_load`| Engine load biased up to 100%                    |
+| Scenario          | Effect                                            | Health finding                        |
+| ----------------- | ------------------------------------------------ | ------------------------------------- |
+| `normal`          | Nominal operating ranges                         | `<healthy>` (no critical/warning rules)|
+| `high_temperature`| Coolant/oil targets climb (~115 °C coolant)      | `COOLANT_TEMP_HIGH` critical, `OIL_TEMP_HIGH`, rapid-rise |
+| `low_battery`     | Running/battery set-points collapse (~11.9 V)    | `BATTERY_VOLTAGE_LOW` warning          |
+| `high_engine_load`| Engine load biased up to 100%                    | `ENGINE_LOAD_HIGH` warning             |
 
 Physical invariants: fuel only decreases while running, odometer only
 increases with speed, engine runtime only accumulates while not `OFF`.
 
-## 16. Error semantics
+## 18. Error semantics
 
 | HTTP | Meaning                       |
 | ---- | ----------------------------- |
@@ -456,12 +588,12 @@ path, malformed/unknown/duplicate messages are logged and skipped; transient
 DB errors are retried a bounded number of times (see
 `MQTT_MESSAGE_RETRY_ATTEMPTS`).
 
-## 17. Intentionally not implemented (yet)
+## 19. Intentionally not implemented (yet)
 
-- Vehicle Context Engine (Phase 3) — will consume historical telemetry via the
-  repository layer.
 - LangGraph supervisor agent (Phase 4), manufacturer manual RAG (Phase 5),
   LLM diagnostics (Phase 6), PDF reports (Phase 7), Next.js dashboard
   (Phase 8).
+- The Phase 3 health engine is fully deterministic: no LLM, no ML, and no
+  prior/manual data are used anywhere in the analysis pipeline.
 - Authentication/JWT, pgvector/embeddings, anomaly analytics, and any
   TimescaleDB-specific behaviour.

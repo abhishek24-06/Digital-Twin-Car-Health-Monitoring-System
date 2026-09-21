@@ -5,9 +5,11 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session_factory
+from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.services.telemetry_service import TelemetryService
+from app.services.vehicle_health_service import VehicleHealthService
 from app.services.vehicle_service import VehicleService
 
 
@@ -36,4 +38,15 @@ def get_telemetry_service(
         session=session,
         repository=TelemetryRepository(session),
         vehicle_repository=VehicleRepository(session),
+    )
+
+
+def get_vehicle_health_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> VehicleHealthService:
+    return VehicleHealthService(
+        session=session,
+        vehicle_repository=VehicleRepository(session),
+        telemetry_repository=TelemetryRepository(session),
+        health_repository=HealthSnapshotRepository(session),
     )
