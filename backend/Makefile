@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format migrate migration docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker
+.PHONY: install dev test lint format migrate migration docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker db-check db-current db-heads db-history
 
 install:
 	python -m venv .venv
@@ -19,6 +19,18 @@ format:
 
 migrate:
 	.venv/bin/alembic upgrade head
+
+# Verify DATABASE_URL is reachable (independent probe; prints TLS status).
+db-check:
+	.venv/bin/python -m scripts.check_db
+
+# Inspect migration state/targets for the configured DATABASE_URL.
+db-current:
+	.venv/bin/alembic current
+db-heads:
+	.venv/bin/alembic heads
+db-history:
+	.venv/bin/alembic history --verbose
 
 migration:
 	@read -p "Message: " msg; .venv/bin/alembic revision --autogenerate -m "$$msg"

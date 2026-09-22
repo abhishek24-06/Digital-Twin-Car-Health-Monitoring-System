@@ -136,7 +136,7 @@ route does. Idempotency lives in the service; the unique
 | Migrations       | Alembic                           |
 | MQTT client      | aiomqtt 2.x (asyncio wrapper over paho-mqtt) |
 | Broker           | Mosquitto (Docker / local)        |
-| Database         | PostgreSQL 16+                    |
+| Database         | PostgreSQL 16+ (local dev) / Supabase managed PostgreSQL (deployment) |
 | Tests            | pytest, pytest-asyncio, httpx     |
 | Lint/format      | Ruff                              |
 | Container        | Docker, Docker Compose            |
@@ -338,6 +338,139 @@ container. Simulator defaults to the seeded demo vehicle id
 > forever if the broker is down, and restart (unless-stopped) if the container
 > itself dies.
 
+## 10. Supabase database (Phase 3.5)
+
+Phase 3.5 keeps the existing architecture — FastAPI → Services →
+Repositories → SQLAlchemy (async) → asyncpg → Alembic — exactly as is, and
+replaces the local PostgreSQL deployment with a **managed Supabase PostgreSQL**
+project **purely via configuration**. No `supabase-py`, no Data/REST/Storage/
+Auth, no `supabase/migrations/`, no new schema tooling. The application cannot
+tell (and does not need to know) whether it talks to local PostgreSQL or
+Supabase.
+
+### 10.1 Choosing the connection string
+
+Supabase exposes one PostgreSQL database per project (schema lives in a
+dedicated `postgres` login). The **only** supported source is the project's
+Connect dialogue:
+
+> Supabase Dashboard → Project Settings → Database → **Connection string** (`URI`)
+
+- **Prefer the Direct connection** — `db.<project-ref>.supabase.co:5432`.
+  Choose this if the machine can reach it; it is the closest match to the
+  local experience.
+- **Fall back to the Session pooler** (`Pooler` + **Session** mode, port
+  `5432`) only when the network is IPv4-only and direct connections time out.
+- **Do not use Transaction mode.** If it is ever enabled, connections must set
+  `asyncpg` `statement_cache_size=0` (not currently configured — avoid the
+  mode entirely).
+- Supabase requires TLS; asyncpg negotiates it automatically. For explicit,
+  verifiable encryption append `?ssl=require` to the URL. (Use `ssl`, not
+  `sslmode`: SQLAlchemy's asyncpg dialect forwards URL query parameters as
+  connect() keyword arguments, where asyncpg accepts `ssl` but rejects
+  `sslmode`.) Never use `ssl=false` or `sslmode=disable` workarounds.
+
+### 10.2 Configuring the app
+
+Put the full connection string in `backend/.env` (already git-ignored) as
+`DATABASE_URL`. Nothing else changes:
+
+```bash
+# backend/.env  (with the exact string from the Connect dialogue)
+DATABASE_URL=postgresql+asyncpg://postgres.<project-ref>:<password>@db.<project-ref>.supabase.co:5432/postgres?ssl=require
+```
+
+Or export it as a real environment variable / Compose variable. `.env` and
+`.env.*` are git-ignored; real credentials must never be committed. Reports and
+logs always redact them.
+
+### 10.3 Verifying connectivity and migrating the schema
+
+The schema is owned exclusively by Alembic, so migration targets Supabase with
+the exact same commands used locally:
+
+```bash
+make db-check      # independent asyncpg probe; prints server version + TLS
+make db-current    # confirm state (empty/new project shows "<base>")
+make migrate       # alembic upgrade head  (applies all migrations)
+make db-current    # confirm head == a1b2c3d4e5f6
+```
+
+`alembic upgrade head` creates `vehicles`, `telemetry_records` (partial unique
+index on `(vehicle_id, source_event_id)`), and `vehicle_health_snapshots`
+(JSONB + indexes) inside the project's `public` schema.
+
+### 10.4 Data migration decision
+
+The local database currently holds **disposable development/demo data**
+(`11` vehicles, `4430` telemetry rows, `16` health snapshots — all produced by
+the seed script, the simulator, and manual scenarios). Per Phase 3.5 guidance
+this is **CASE A: data is disposable — do not copy it**. Instead:
+
+1. Migrate only the **schema** via `alembic upgrade head` (above).
+2. Recreate the demo vehicle and data on Supabase:
+   `make seed-demo-vehicle`, then run the simulator (`make simulator`) or the
+   REST/health scenario commands to generate fresh telemetry and snapshots.
+
+The local database is left intact; **rollback** is simply pointing
+`DATABASE_URL` back at the local server (see 10.7).
+
+### 10.5 Runtime verification on Supabase
+
+```bash
+make dev                      # or: .venv\Scripts\uvicorn app.main:app
+curl http://localhost:8000/api/v1/health/db    # must report reachable
+make mqtt-subscriber          # persists MQTT telemetry into Supabase
+make db-check                 # rows appear / TLS stays on
+curl -X POST http://localhost:8000/api/v1/vehicles/11111111-2222-4333-8444-555555555555/health/analyze
+```
+
+Confirm written rows in Supabase Dashboard → **Table Editor** (`public` schema)
+and that the health snapshot round-trips correctly.
+
+### 10.6 Test safety
+
+The automated suite **always runs against the dedicated local test database**
+(`digital_twin_test`, driven by `TEST_DATABASE_URL`) and never against
+Supabase. `tests/conftest.py` refuses to start if the test URL host looks
+hosted (`supabase`/`pooler`), because the fixtures drop and truncate tables.
+
+### 10.7 Rollback plan
+
+| Step | Action |
+| ---- | ------ |
+| 1 | Stop the API / subscriber / simulator |
+| 2 | In `backend/.env`, set `DATABASE_URL` back to `postgresql+asyncpg://postgres:postgres@localhost:5432/digital_twin` |
+| 3 | `make db-current` — local upgraded (stays at `a1b2c3d4e5f6`) |
+| 4 | `make dev` — everything works against local PostgreSQL again |
+
+No application code was changed during the migration, so nothing else to
+revert.
+
+### 10.8 Docker notes
+
+`backend/docker-compose.yml` now reads `DATABASE_URL` as
+`${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin}`,
+so `DATABASE_URL=... docker compose up` runs the Compose stack against any
+managed database. Because the Compose `postgres` service is still wired as a
+dependency (and intentionally kept for the fully local stack), it starts and
+sits unused in that scenario; start only the services you need
+(`docker compose up backend mqtt-subscriber mosquitto simulator`) to avoid it.
+The `Dockerfile` needs no changes — it already receives the URL via the
+environment.
+
+> Docker runtime verification was not performed because Docker is unavailable
+> on the development machine.
+
+### 10.9 Row-level security (RLS) posture
+
+RLS is **not enabled** on the schema in this phase. The backend connects with a
+privileged PostgreSQL login and executes authenticated application logic over
+SQLAlchemy; enabling RLS adds no protection for this access path. RLS should be
+revisited when a public-facing Data API / frontend is introduced, with separate
+`authenticated`/`anon` roles and per-row policies. Documented here — not
+applied now.
+
 ## 11. Database schema & migrations
 
 Migrations are autogenerated from the SQLAlchemy models.
@@ -446,6 +579,9 @@ The suite:
 
 - creates/uses `digital_twin_test`, builds the schema from models, truncates
   between tests, tears down afterwards
+- **refuses to start** when `TEST_DATABASE_URL` points at a hosted database
+  (Supabase/pooler hostnames), protecting production data from the destructive
+  fixtures
 - **unit**: MQTT topic build/parse, envelope validation (ranges, timezone,
   unknown fields), parser, simulator state-machine/physical invariants, and
   simulator config/env handling; plus `tests/intelligence/` (statistics,

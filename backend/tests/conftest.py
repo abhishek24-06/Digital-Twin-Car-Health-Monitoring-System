@@ -1,5 +1,6 @@
 import os
 from collections.abc import AsyncIterator
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import asyncpg
@@ -14,6 +15,17 @@ TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://postgres:root@127.0.0.1:5432/digital_twin_test",
 )
+
+# Safety rail: the test suite drops/creates the schema and truncates every
+# table. It must never run against a managed/shared database. This guard also
+# catches an accidental TEST_DATABASE_URL that points at, say, Supabase.
+_test_host = (urlparse(TEST_DATABASE_URL).hostname or "").lower()
+if any(marker in _test_host for marker in ("supabase", "pooler")):
+    raise RuntimeError(
+        "Refusing to run the destructive test suite against a hosted database "
+        f"({_test_host!r}). Set TEST_DATABASE_URL to a dedicated local database."
+    )
+
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["APP_ENV"] = "test"
 os.environ["DEBUG"] = "false"

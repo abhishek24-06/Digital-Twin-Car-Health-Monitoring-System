@@ -27,11 +27,28 @@ def init_engine(settings: Settings) -> None:
     if _engine is not None:
         return
 
+    if settings.app_env == "test":
+        # The test suite creates/truncates schema per test; a pool only gets in
+        # the way, so tests opt out and open a fresh connection each time.
+        pool_kwargs: dict = {"poolclass": NullPool}
+    else:
+        # Conservative pool for PostgreSQL in general and managed databases
+        # (e.g. Supabase) in particular: hosting providers enforce connection
+        # limits, so the pool is deliberately small and bounded. pool_pre_ping
+        # re-validates idle connections, and pool_recycle force-refreshes them
+        # before the provider's idle-timeout can reap them.
+        pool_kwargs = {
+            "pool_size": 5,
+            "max_overflow": 5,
+            "pool_timeout": 30,
+            "pool_recycle": 1800,
+            "pool_pre_ping": True,
+        }
+
     _engine = create_async_engine(
         settings.database_url,
         echo=settings.is_debug,
-        pool_pre_ping=True,
-        poolclass=NullPool if settings.app_env == "test" else None,
+        **pool_kwargs,
     )
     _session_factory = async_sessionmaker(
         bind=_engine,

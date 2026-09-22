@@ -27,7 +27,9 @@ services:
       APP_NAME: Digital Twin API
       APP_ENV: development
       DEBUG: "true"
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin
+      # Overridable: export DATABASE_URL (e.g. a Supabase connection string) to
+      # run the stack against any managed PostgreSQL without local postgres.
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin}
       CORS_ORIGINS: '["http://localhost:3000", "http://localhost:8000"]'
     ports:
       - "8000:8000"
@@ -79,7 +81,7 @@ services:
     environment:
       APP_ENV: development
       DEBUG: "false"
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/digital_twin}
       MQTT_BROKER_HOST: mosquitto
       MQTT_BROKER_PORT: "1883"
       MQTT_USERNAME: ${MQTT_USERNAME:-mqtt}
