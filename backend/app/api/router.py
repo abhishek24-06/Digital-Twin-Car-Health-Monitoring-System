@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import health, telemetry, vehicle_health, vehicles
+from app.api.routes import agent, health, telemetry, vehicle_health, vehicles
 
 api_router = APIRouter()
 
@@ -15,4 +15,9 @@ api_router.include_router(
     vehicle_health.router,
     prefix="/vehicles/{vehicle_id}/health",
     tags=["Vehicle Health"],
+)
+api_router.include_router(
+    agent.router,
+    prefix="/vehicles/{vehicle_id}/agent",
+    tags=["Agent"],
 )

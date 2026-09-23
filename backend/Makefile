@@ -1,4 +1,4 @@
-.PHONY: install dev test lint format migrate migration docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker db-check db-current db-heads db-history
+.PHONY: install dev test lint format migrate migration docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker db-check db-current db-heads db-history agent-llm-smoke
 
 install:
 	python -m venv .venv
@@ -75,3 +75,9 @@ mqtt-test:
 # Start a local (loopback-only, anonymous) Mosquitto broker for development.
 mqtt-broker:
 	mosquitto -c infrastructure/mosquitto/mosquitto.local.conf
+
+# ------------------------------------------------------------------ Phase 4
+
+# Gate-controlled live LLM smoke test (real provider key required in .env).
+agent-llm-smoke:
+	RUN_LLM_SMOKE_TEST=true .venv/bin/python -m scripts.smoke_agent_llm

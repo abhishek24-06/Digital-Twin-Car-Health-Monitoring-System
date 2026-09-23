@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.service import AgentService
 from app.core.database import get_session_factory
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
@@ -50,3 +51,9 @@ def get_vehicle_health_service(
         telemetry_repository=TelemetryRepository(session),
         health_repository=HealthSnapshotRepository(session),
     )
+
+
+def get_agent_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AgentService:
+    return AgentService(session)

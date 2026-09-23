@@ -6,6 +6,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.agent.errors import (
+    AgentConfigurationError,
+    GraphExecutionError,
+    LLMAuthError,
+    LLMBadRequestError,
+    LLMProviderError,
+    LLMProviderUnavailableError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    StructuredOutputError,
+)
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.database import check_database_connection, dispose_engine, init_engine
@@ -70,6 +81,100 @@ async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse
 async def database_error_handler(request: Request, exc: DatabaseError) -> JSONResponse:
     logger.error("Database error while handling %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+@app.exception_handler(LLMTimeoutError)
+async def llm_timeout_handler(request: Request, exc: LLMTimeoutError) -> JSONResponse:
+    logger.error("LLM timeout while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=504, content={"detail": "LLM provider timed out", "error_code": exc.error_code}
+    )
+
+
+@app.exception_handler(LLMRateLimitError)
+async def llm_rate_limit_handler(request: Request, exc: LLMRateLimitError) -> JSONResponse:
+    logger.error("LLM rate limit while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "LLM provider is rate limiting requests", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(LLMAuthError)
+async def llm_auth_handler(request: Request, exc: LLMAuthError) -> JSONResponse:
+    logger.error("LLM auth failure while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "LLM provider authentication failed", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(LLMProviderUnavailableError)
+async def llm_unavailable_handler(
+    request: Request, exc: LLMProviderUnavailableError
+) -> JSONResponse:
+    logger.error("LLM provider unavailable while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "LLM provider unavailable", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(LLMBadRequestError)
+async def llm_bad_request_handler(request: Request, exc: LLMBadRequestError) -> JSONResponse:
+    logger.error("LLM bad request while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "LLM provider rejected the request", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(LLMProviderError)
+async def llm_provider_error_handler(request: Request, exc: LLMProviderError) -> JSONResponse:
+    logger.error("LLM provider error while handling %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "LLM provider error", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(StructuredOutputError)
+async def structured_output_handler(request: Request, exc: StructuredOutputError) -> JSONResponse:
+    logger.error(
+        "Structured output invalid while handling %s %s: error_code=%s provider=%s model=%s detail=%s",
+        request.method,
+        request.url.path,
+        exc.error_code,
+        getattr(exc, "provider", "unknown"),
+        getattr(exc, "model", "unknown"),
+        exc,
+    )
+    return JSONResponse(
+        status_code=502,
+        content={"detail": "LLM structured output invalid", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(AgentConfigurationError)
+async def agent_configuration_handler(
+    request: Request, exc: AgentConfigurationError
+) -> JSONResponse:
+    logger.error("Agent configuration error: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Agent is not configured correctly", "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(GraphExecutionError)
+async def graph_execution_handler(request: Request, exc: GraphExecutionError) -> JSONResponse:
+    logger.error(
+        "Agent graph execution error while handling %s %s", request.method, request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Agent workflow failed", "error_code": exc.error_code},
+    )
 
 
 @app.exception_handler(AppError)

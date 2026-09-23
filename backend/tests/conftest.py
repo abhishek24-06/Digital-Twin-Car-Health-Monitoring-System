@@ -65,8 +65,8 @@ async def _truncate_all() -> None:
     async with get_engine().begin() as conn:
         await conn.execute(
             text(
-                "TRUNCATE TABLE vehicle_health_snapshots, telemetry_records, vehicles "
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE TABLE agent_diagnoses, vehicle_health_snapshots, telemetry_records, "
+                "vehicles RESTART IDENTITY CASCADE"
             )
         )
 

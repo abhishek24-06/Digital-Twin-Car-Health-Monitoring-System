@@ -8,7 +8,10 @@ them in PostgreSQL. **Phase 3** adds a deterministic, explainable **Vehicle
 Health Context** engine that analyses a configurable historical telemetry
 window (statistics → trends → baselines → rules → health score → confidence),
 persists every analysis as an immutable snapshot in PostgreSQL, and exposes
-it through a REST API.
+it through a REST API. **Phase 4** adds an **agentic vehicle reasoning** layer:
+a LangGraph supervisor workflow grounds natural-language queries and critical
+telemetry events through a controlled Vehicle Context tool and the deterministic
+health context, and persists structured diagnoses the LLM can never overwrite.
 
 ## 1. Project overview
 
@@ -82,9 +85,41 @@ code the MQTT subscriber uses.
 - `HEALTH_*` settings (analysis window, minimum samples, expected interval,
   baseline window, baseline minimum samples)
 
-**Not implemented (later phases):** LangGraph/LangChain, LLM calls, RAG,
-pgvector/embeddings, ML prediction, dashboard, authentication/JWT, and report
-generation.
+**Phase 4 (agentic vehicle reasoning):**
+- `app/agent/` LangGraph supervisor workflow
+  (`supervisor → reason → validate → persist`): the supervisor gathers the
+  vehicle context, the reason node calls the LLM, the validate node grounds
+  evidence and clamps severity/confidence, and persist writes the result
+- Controlled **Vehicle Context tool** (`app/agent/tools/vehicle_context.py`) —
+  the LLM's only view of data: serialized, size-bounded Health Context JSON;
+  the model never touches the DB, SQL, or repositories
+- Deterministic engine is the source of truth: severity/confidence/score always
+  reflect the health context; the LLM's assessed severity is clamped to the
+  deterministic severity, confidence to within ±0.2, and fabricated
+  rule ids/metrics are dropped with `validation_warnings` (evidence grounding)
+- Raw provider errors classified into a taxonomy (`timeout | rate_limit |
+  connection | server | auth | bad_request | unknown`); retryable failures use
+  exponential backoff; the fallback provider (OpenRouter primary, Groq
+  fallback) is built lazily and skipped when unconfigured
+- Providers (LangChain `langchain-openai` chat models over the OpenAI-compatible
+  Chat Completions API): `openrouter.py`, `groq.py`, plus a deterministic
+  `mock.py` used by the entire test suite
+- `agent_diagnoses` table (Alembic migration `c7f2e8a1b3d4`) persists every
+  grounded diagnosis (JSONB body + queryable severity/confidence/status/provider/
+  latency/token columns, no chain-of-thought persisted)
+- Triggers: `USER_QUERY`, `CRITICAL_TELEMETRY_EVENT` (with cooldown
+  deduplication — repeated rules within `AGENT_CRITICAL_EVENT_COOLDOWN_SECONDS`
+  return the existing diagnosis without a new LLM call), and a **no-LLM**
+  `DASHBOARD_LOAD` hook
+- REST endpoints under `/api/v1/vehicles/{id}/agent`; agent errors map to
+  `500/502/503/504` and are never leaked to clients
+- Full unit + API test suite (`tests/agent/`) runs on `MockLLMProvider` — no
+  real API keys required; live LLM smoke gated behind `RUN_LLM_SMOKE_TEST=true`
+  (`scripts/smoke_agent_llm.py` / `make agent-llm-smoke`)
+
+**Not implemented (later phases):** RAG/manufacturer manuals (Phase 5), PDF
+reports (Phase 7), Next.js dashboard (Phase 8), ML prediction, authentication/
+JWT, pgvector/embeddings, TimescaleDB features.
 
 ## 3. Architecture
 
@@ -133,6 +168,8 @@ route does. Idempotency lives in the service; the unique
 | Web              | FastAPI, Uvicorn                  |
 | Validation       | Pydantic v2, pydantic-settings    |
 | ORM              | SQLAlchemy 2.x (async), asyncpg   |
+| Agent            | LangGraph state graph + supervisor pattern (Phase 4) |
+| LLM SDK          | LangChain (langchain-openai) over OpenAI-compatible endpoints |
 | Migrations       | Alembic                           |
 | MQTT client      | aiomqtt 2.x (asyncio wrapper over paho-mqtt) |
 | Broker           | Mosquitto (Docker / local)        |
@@ -150,7 +187,8 @@ backend/
 │   ├── api/
 │   │   ├── router.py
 │   │   └── routes/
-│   │       ├── health.py        ├── vehicles.py        └── telemetry.py
+│   │       ├── health.py  ├── vehicles.py  ├── telemetry.py
+│   │       ├── vehicle_health.py       └── agent.py       # Phase 4 agent API
 │   ├── core/
 │   │   ├── config.py            # Settings (env / .env) incl. MQTT_*
 │   │   ├── database.py          # Async engine + session factory + health probe
@@ -172,7 +210,17 @@ backend/
 │   │   ├── scoring.py            # Health score + status + confidence model
 │   │   ├── context.py            # HealthContext assembly
 │   │   └── engine.py             # HealthAnalysisEngine pipeline
+│   ├── agent/                    # Phase 4 reasoning agent
+│   │   ├── config.py  errors.py  triggers.py            # settings + error taxonomy
+│   │   ├── schemas.py            # DiagnosisContent, DiagnosisResponse, ...
+│   │   ├── determinism.py  grounding.py                 # severity/confidence + evidence
+│   │   ├── prompts.py            # system prompt + message builders
+│   │   ├── providers/            # base, openrouter, groq, mock, factory
+│   │   ├── llm_service.py        # retry + fallback + JSON extraction
+│   │   ├── tools/vehicle_context.py                     # LLM's only data view
+│   │   ├── state.py  nodes.py  graph.py  service.py     # LangGraph + AgentService
 │   ├── models/  ├── schemas/  ├── repositories/  ├── services/
+│   │   ├── agent_diagnosis.py  └── agent_diagnosis_repository.py  # Phase 4
 │   └── dependencies/
 ├── simulator/                   # Phase 2 vehicle simulator
 │   ├── config.py                # SIMULATOR_* + shared MQTT_* settings
@@ -181,7 +229,8 @@ backend/
 │   ├── publisher.py             # Reuses app.mqtt.publisher.MQTTPublisher
 │   └── main.py                  # `python -m simulator.main` entry
 ├── scripts/
-│   └── seed_demo_vehicle.py     # Idempotently seed the demo vehicle
+│   ├── seed_demo_vehicle.py     # Idempotently seed the demo vehicle
+│   └── smoke_agent_llm.py       # Gate-controlled live LLM smoke (Phase 4)
 ├── infrastructure/mosquitto/
 │   ├── mosquitto.conf           # Docker (credentialed) broker config
 │   ├── mosquitto.acl            # Dev ACL (vehicles/#)
@@ -189,7 +238,7 @@ backend/
 ├── alembic/                     # Versions, async env, script.py.mako
 ├── tests/
 │   ├── conftest.py              # Test DB, engine, client, clean-state fixtures
-│   ├── api/  ├── services/  ├── mqtt/  └── simulator/
+│   ├── api/  ├── services/  ├── mqtt/  ├── simulator/  └── agent/  # Phase 4 tests
 ├── .env.example  alembic.ini  Dockerfile  docker-compose.yml  Makefile
 ├── pyproject.toml  README.md
 ```
@@ -505,6 +554,17 @@ Phase 3 health migration (`a1b2c3d4e5f6_create_vehicle_health_snapshots`):
   `(vehicle_id, health_status, generated_at)`
 - `downgrade` drops the table
 
+Phase 4 agent migration (`c7f2e8a1b3d4_create_agent_diagnoses`):
+
+- creates `agent_diagnoses` with the grounded diagnosis body (`diagnosis` JSONB)
+  plus queryable top-level columns (`severity`, `confidence`, `status`,
+  `error_code`, `provider`, `model`, `fallback_used`, `latency_ms`,
+  `input_tokens`, `output_tokens`, `context_timestamp`)
+- foreign key `vehicle_id → vehicles.id` with `ON DELETE CASCADE`
+- composite indexes `(vehicle_id, created_at)` and
+  `(vehicle_id, trigger_type, created_at)`
+- `downgrade` drops the table
+
 ## 12. Vehicle Health Context (Phase 3)
 
 Analysis is only ever triggered explicitly — there is no scheduler, no
@@ -573,6 +633,9 @@ set TEST_DATABASE_URL=postgresql+asyncpg://postgres:root@localhost:5432/digital_
 
 pytest                    # or: make test        (skips broker e2e)
 pytest -m mqtt_e2e        # or: make mqtt-test   (requires a running broker)
+
+# Live LLM smoke (Phase 4) — requires a real provider key in .env:
+RUN_LLM_SMOKE_TEST=true python -m scripts.smoke_agent_llm    # or: make agent-llm-smoke
 ```
 
 The suite:
@@ -591,6 +654,10 @@ The suite:
   pagination and `VehicleHealthService` analysis
 - **API**: all Phase 1/2 endpoint tests still pass unchanged; Phase 3 health
   analysis/latest/history endpoint tests
+- **agent (`tests/agent/`)**: settings, provider factory, error classification
+  and retry/fallback routing, deterministic severity/confidence, evidence
+  grounding, and the full agent API (query, critical-event dedup, no-LLM
+  dashboard, history, latest) — all on `MockLLMProvider`, no real API keys
 - **subscriber (mocked MQTT)**: valid → persisted; duplicate → skipped;
   invalid JSON / envelope/topic mismatch / unknown vehicle → skipped without
   raising
@@ -628,6 +695,11 @@ Interactive docs are served by FastAPI:
 | POST   | `/api/v1/vehicles/{id}/health/analyze`| Analyze + persist a health snapshot (window_minutes 1–1440) |
 | GET    | `/api/v1/vehicles/{id}/health`        | Latest persisted health context     |
 | GET    | `/api/v1/vehicles/{id}/health/history`| Paginated health snapshot history   |
+| POST   | `/api/v1/vehicles/{id}/agent/query`   | Natural-language question → grounded diagnosis (LLM) |
+| POST   | `/api/v1/vehicles/{id}/agent/events/critical` | Diagnose a critical telemetry event (LLM; dedup within cooldown) |
+| GET    | `/api/v1/vehicles/{id}/agent/dashboard`   | Dashboard hook — health context + latest diagnosis (no LLM) |
+| GET    | `/api/v1/vehicles/{id}/agent/diagnoses`   | Paginated agent diagnosis history  |
+| GET    | `/api/v1/vehicles/{id}/agent/diagnoses/latest` | Latest persisted diagnosis (404 if none) |
 
 All routes are versioned under `/api/v1`.
 
@@ -717,19 +789,26 @@ increases with speed, engine runtime only accumulates while not `OFF`.
 | 404  | Resource does not exist       |
 | 409  | Conflict (e.g. duplicate VIN) |
 | 422  | Request validation failed     |
-| 500  | Unexpected server failure     |
+| 500  | Agent misconfiguration / graph execution failure |
+| 502  | LLM provider error (bad request, auth, provider failure, invalid structured output) |
+| 503  | LLM provider rate limiting    |
+| 504  | LLM provider timeout          |
 
 Internal database errors are logged and never exposed to clients. On the MQTT
 path, malformed/unknown/duplicate messages are logged and skipped; transient
 DB errors are retried a bounded number of times (see
-`MQTT_MESSAGE_RETRY_ATTEMPTS`).
+`MQTT_MESSAGE_RETRY_ATTEMPTS`). LLM API keys never appear in logs or responses:
+provider exceptions are sanitized into the agent taxonomy above.
 
 ## 19. Intentionally not implemented (yet)
 
-- LangGraph supervisor agent (Phase 4), manufacturer manual RAG (Phase 5),
-  LLM diagnostics (Phase 6), PDF reports (Phase 7), Next.js dashboard
+- Manufacturer-manual RAG (Phase 5), PDF reports (Phase 7), Next.js dashboard
   (Phase 8).
 - The Phase 3 health engine is fully deterministic: no LLM, no ML, and no
   prior/manual data are used anywhere in the analysis pipeline.
+- The Phase 4 agent has no RAG/embeddings, no vector store, no long-term
+  memory/history beyond the persisted diagnoses, and no tool access beyond the
+  controlled Vehicle Context tool — the LLM cannot touch the database, SQL, or
+  repositories directly.
 - Authentication/JWT, pgvector/embeddings, anomaly analytics, and any
   TimescaleDB-specific behaviour.
