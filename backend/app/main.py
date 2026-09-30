@@ -20,8 +20,21 @@ from app.agent.errors import (
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.database import check_database_connection, dispose_engine, init_engine
-from app.core.exceptions import AppError, ConflictError, DatabaseError, NotFoundError
+from app.core.exceptions import (
+    AppError,
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    DatabaseError,
+    NotFoundError,
+)
 from app.core.logging import configure_logging
+from app.rag.errors import (
+    RAGDocumentUnavailableError,
+    RAGIngestionFailureError,
+    RAGUploadTooLargeError,
+    RAGUploadValidationError,
+)
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -81,6 +94,44 @@ async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse
 async def database_error_handler(request: Request, exc: DatabaseError) -> JSONResponse:
     logger.error("Database error while handling %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
+@app.exception_handler(AuthenticationError)
+async def authentication_error_handler(request: Request, exc: AuthenticationError) -> JSONResponse:
+    return JSONResponse(status_code=401, content={"detail": exc.detail})
+
+
+@app.exception_handler(AuthorizationError)
+async def authorization_error_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": exc.detail})
+
+
+@app.exception_handler(RAGUploadValidationError)
+async def rag_upload_validation_handler(
+    request: Request, exc: RAGUploadValidationError
+) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(RAGUploadTooLargeError)
+async def rag_upload_too_large_handler(
+    request: Request, exc: RAGUploadTooLargeError
+) -> JSONResponse:
+    return JSONResponse(status_code=413, content={"detail": str(exc)})
+
+
+@app.exception_handler(RAGIngestionFailureError)
+async def rag_ingestion_failure_handler(
+    request: Request, exc: RAGIngestionFailureError
+) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.exception_handler(RAGDocumentUnavailableError)
+async def rag_document_unavailable_handler(
+    request: Request, exc: RAGDocumentUnavailableError
+) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 @app.exception_handler(LLMTimeoutError)
@@ -183,11 +234,37 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
+def _jsonable_validation_errors(errors: list[dict]) -> list[dict]:
+    """Strip anything that is not JSON-serializable from validation errors.
+
+    ``exc.errors()`` can carry live objects in ``ctx`` (e.g. the ``ValueError``
+    raised when a plain form value is posted to a file field) and non-primitive
+    ``input`` values (e.g. ``UploadFile``). Returning those verbatim makes the
+    422 response itself unserializable, which would turn a client error into a
+    500. Only ``type``/``loc``/``msg`` are contractual here, so everything else
+    is dropped unless it is a plain JSON primitive.
+    """
+    out: list[dict] = []
+    for error in errors:
+        item = {
+            "type": str(error.get("type", "")),
+            "loc": [str(part) for part in error.get("loc", ())],
+            "msg": str(error.get("msg", "")),
+        }
+        raw_input = error.get("input")
+        if isinstance(raw_input, str | int | float | bool | list | dict | None):
+            item["input"] = raw_input
+        out.append(item)
+    return out
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    return JSONResponse(
+        status_code=422, content={"detail": _jsonable_validation_errors(exc.errors())}
+    )
 
 
 @app.exception_handler(Exception)

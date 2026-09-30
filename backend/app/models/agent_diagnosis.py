@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.user import User
     from app.models.vehicle import Vehicle
 
 
@@ -30,6 +31,11 @@ class AgentDiagnosis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("vehicles.id", ondelete="CASCADE"),
         nullable=False,
     )
+    user_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     agent_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     trigger_type: Mapped[str] = mapped_column(String(32), nullable=False)
     user_query: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -47,11 +53,18 @@ class AgentDiagnosis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     context_timestamp: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    rag_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    rag_evidence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rag_embedding_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rag_reranker_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rag_scope: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     vehicle: Mapped[Vehicle] = relationship(
         back_populates="agent_diagnoses",
         passive_deletes=True,
     )
+
+    user: Mapped[User | None] = relationship()
 
     __table_args__ = (
         Index(

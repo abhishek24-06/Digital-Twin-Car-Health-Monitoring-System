@@ -39,7 +39,11 @@ from app.agent.schemas import DiagnosisContent
 #: path instead of silently degrading to free-form text.
 STRUCTURED_OUTPUT_METHOD = "function_calling"
 
-_KEY_LIKE_RE = re.compile(r"(?:sk-[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{40,})")
+_KEY_LIKE_RE = re.compile(
+    r"(?i)(?:sk-[A-Za-z0-9_-]{12,}"
+    r"|[A-Za-z0-9_-]{40,}"
+    r"|(?:api[_-]?key|secret|token|password|bearer)[\s=:'\"]*[A-Za-z0-9_.-]{6,})"
+)
 
 
 @dataclass(slots=True)

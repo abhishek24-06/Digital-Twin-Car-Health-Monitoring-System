@@ -4,7 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_vehicle_health_service
+from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.vehicle_health import HealthContextResponse, HealthSnapshotItem
 from app.services.vehicle_health_service import VehicleHealthService
@@ -27,10 +29,11 @@ router = APIRouter()
 async def analyze_vehicle_health(
     vehicle_id: UUID,
     vehicle_health_service: Annotated[VehicleHealthService, Depends(get_vehicle_health_service)],
+    user: Annotated[User, Depends(get_current_user)],
     window_minutes: Annotated[int | None, Query(ge=1, le=1440)] = None,
 ) -> HealthContextResponse:
-    snapshot = await vehicle_health_service.analyze_vehicle(
-        vehicle_id, window_minutes=window_minutes
+    snapshot = await vehicle_health_service.analyze_vehicle_for_user(
+        vehicle_id, user, window_minutes=window_minutes
     )
     return HealthContextResponse.model_validate(snapshot.context_json)
 
@@ -44,8 +47,9 @@ async def analyze_vehicle_health(
 async def get_latest_health(
     vehicle_id: UUID,
     vehicle_health_service: Annotated[VehicleHealthService, Depends(get_vehicle_health_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> HealthContextResponse:
-    snapshot = await vehicle_health_service.get_latest(vehicle_id)
+    snapshot = await vehicle_health_service.get_latest_for_user(vehicle_id, user)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -66,6 +70,7 @@ async def get_latest_health(
 async def list_health_history(
     vehicle_id: UUID,
     vehicle_health_service: Annotated[VehicleHealthService, Depends(get_vehicle_health_service)],
+    user: Annotated[User, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     start_time: Annotated[
@@ -75,8 +80,9 @@ async def list_health_history(
         datetime | None, Query(description="Inclusive upper bound (ISO 8601)")
     ] = None,
 ) -> PaginatedResponse[HealthSnapshotItem]:
-    snapshots, total = await vehicle_health_service.list_history(
+    snapshots, total = await vehicle_health_service.list_history_for_user(
         vehicle_id,
+        user,
         page=page,
         page_size=page_size,
         start_time=start_time,

@@ -52,17 +52,17 @@ def _payload_at(seconds_ago: float) -> dict:
     return {"timestamp": ts, **HEALTHY_PAYLOAD}
 
 
-async def _ingest(client: httpx.AsyncClient, vehicle_id: str, count: int = 40) -> None:
+async def _ingest(auth_client: httpx.AsyncClient, vehicle_id: str, count: int = 40) -> None:
     for index in range(count):
-        response = await client.post(
+        response = await auth_client.post(
             f"/api/v1/vehicles/{vehicle_id}/telemetry",
             json=_payload_at(count - index),
         )
         assert response.status_code == 201, response.text
 
 
-async def _analyze(client: httpx.AsyncClient, vehicle_id: str) -> dict:
-    response = await client.post(
+async def _analyze(auth_client: httpx.AsyncClient, vehicle_id: str) -> dict:
+    response = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/health/analyze", params={"window_minutes": 1}
     )
     assert response.status_code == 200, response.text
@@ -70,10 +70,10 @@ async def _analyze(client: httpx.AsyncClient, vehicle_id: str) -> dict:
 
 
 async def test_query_without_snapshot_is_deterministic_and_persisted(
-    client: httpx.AsyncClient, sample_vehicle: dict
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     vehicle_id = sample_vehicle["id"]
-    response = await client.post(
+    response = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "How is my car?"}
     )
     assert response.status_code == 200, response.text
@@ -85,20 +85,20 @@ async def test_query_without_snapshot_is_deterministic_and_persisted(
     assert payload["execution"]["provider"] == ""
     assert payload["id"] is not None
 
-    history = await client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses")
+    history = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses")
     assert history.status_code == 200
     assert history.json()["total"] == 1
 
 
 async def test_query_uses_mock_llm_and_grounds_evidence(
-    client: httpx.AsyncClient, sample_vehicle: dict
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     vehicle_id = sample_vehicle["id"]
-    await _ingest(client, vehicle_id)
-    context = await _analyze(client, vehicle_id)
+    await _ingest(auth_client, vehicle_id)
+    context = await _analyze(auth_client, vehicle_id)
     expected_rules = {f["rule_id"] for f in context["findings"]}
 
-    response = await client.post(
+    response = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/query",
         json={"query": "Is the engine near overheating?"},
     )
@@ -114,30 +114,32 @@ async def test_query_uses_mock_llm_and_grounds_evidence(
     assert payload["generated_at"]
 
 
-async def test_query_missing_vehicle_404(client: httpx.AsyncClient) -> None:
-    response = await client.post(
+async def test_query_missing_vehicle_404(auth_client: httpx.AsyncClient) -> None:
+    response = await auth_client.post(
         "/api/v1/vehicles/00000000-0000-0000-0000-000000000099/agent/query",
         json={"query": "hello"},
     )
     assert response.status_code == 404
 
 
-async def test_query_empty_string_rejected(client: httpx.AsyncClient, sample_vehicle: dict) -> None:
-    response = await client.post(
+async def test_query_empty_string_rejected(
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
+) -> None:
+    response = await auth_client.post(
         f"/api/v1/vehicles/{sample_vehicle['id']}/agent/query", json={"query": "   "}
     )
     assert response.status_code == 422
 
 
 async def test_critical_event_dedup_within_cooldown(
-    client: httpx.AsyncClient, sample_vehicle: dict
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     vehicle_id = sample_vehicle["id"]
-    await _ingest(client, vehicle_id)
-    await _analyze(client, vehicle_id)
+    await _ingest(auth_client, vehicle_id)
+    await _analyze(auth_client, vehicle_id)
     rules = ["COOLANT_TEMP_HIGH", "RPM_OVERSPEED"]
 
-    first = await client.post(
+    first = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/events/critical",
         json={"rule_ids": rules},
     )
@@ -145,7 +147,7 @@ async def test_critical_event_dedup_within_cooldown(
     first_payload = first.json()
     assert first_payload["execution"]["deduplicated"] is False
 
-    second = await client.post(
+    second = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/events/critical",
         json={"rule_ids": [rules[0]]},
     )
@@ -154,7 +156,7 @@ async def test_critical_event_dedup_within_cooldown(
     assert second_payload["execution"]["deduplicated"] is True
     assert second_payload["execution"]["rule_ids"] == [rules[0]]
 
-    third = await client.post(
+    third = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/events/critical",
         json={"rule_ids": ["BRAND_NEW_RULE"]},
     )
@@ -163,12 +165,14 @@ async def test_critical_event_dedup_within_cooldown(
     assert third_payload["execution"]["deduplicated"] is False
 
 
-async def test_dashboard_never_calls_llm(client: httpx.AsyncClient, sample_vehicle: dict) -> None:
+async def test_dashboard_never_calls_llm(
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
+) -> None:
     vehicle_id = sample_vehicle["id"]
-    await _ingest(client, vehicle_id)
-    context = await _analyze(client, vehicle_id)
+    await _ingest(auth_client, vehicle_id)
+    context = await _analyze(auth_client, vehicle_id)
 
-    response = await client.get(f"/api/v1/vehicles/{vehicle_id}/agent/dashboard")
+    response = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/dashboard")
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["health_context"]["vehicle_id"] == vehicle_id
@@ -176,8 +180,8 @@ async def test_dashboard_never_calls_llm(client: httpx.AsyncClient, sample_vehic
     assert payload["latest_diagnosis"] is None
     assert payload["diagnosis_age_seconds"] is None
 
-    await client.post(f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "Status?"})
-    response = await client.get(f"/api/v1/vehicles/{vehicle_id}/agent/dashboard")
+    await auth_client.post(f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "Status?"})
+    response = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/dashboard")
     assert response.status_code == 200
     payload = response.json()
     assert payload["latest_diagnosis"] is not None
@@ -185,19 +189,19 @@ async def test_dashboard_never_calls_llm(client: httpx.AsyncClient, sample_vehic
 
 
 async def test_diagnoses_history_pagination(
-    client: httpx.AsyncClient, sample_vehicle: dict
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     vehicle_id = sample_vehicle["id"]
-    await _ingest(client, vehicle_id)
-    await _analyze(client, vehicle_id)
+    await _ingest(auth_client, vehicle_id)
+    await _analyze(auth_client, vehicle_id)
     for index in range(3):
-        response = await client.post(
+        response = await auth_client.post(
             f"/api/v1/vehicles/{vehicle_id}/agent/query",
             json={"query": f"Question {index}"},
         )
         assert response.status_code == 200
 
-    page = await client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses")
+    page = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses")
     assert page.status_code == 200
     body = page.json()
     assert body["total"] == 3
@@ -206,7 +210,7 @@ async def test_diagnoses_history_pagination(
     assert all(item["trigger_type"] == "USER_QUERY" for item in items)
     assert items[0]["created_at"] >= items[1]["created_at"]
 
-    page_two = await client.get(
+    page_two = await auth_client.get(
         f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses",
         params={"page": 1, "page_size": 2},
     )
@@ -214,21 +218,23 @@ async def test_diagnoses_history_pagination(
     assert len(page_two.json()["items"]) == 2
 
 
-async def test_latest_diagnosis_endpoint(client: httpx.AsyncClient, sample_vehicle: dict) -> None:
+async def test_latest_diagnosis_endpoint(
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
+) -> None:
     vehicle_id = sample_vehicle["id"]
-    await _ingest(client, vehicle_id)
-    await _analyze(client, vehicle_id)
-    await client.post(f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "First?"})
-    second = await client.post(
+    await _ingest(auth_client, vehicle_id)
+    await _analyze(auth_client, vehicle_id)
+    await auth_client.post(f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "First?"})
+    second = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "Second?"}
     )
     second_id = second.json()["id"]
 
-    response = await client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses/latest")
+    response = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses/latest")
     assert response.status_code == 200
     assert response.json()["id"] == second_id
 
-    fresh = await client.post(
+    fresh = await auth_client.post(
         "/api/v1/vehicles",
         json={
             "vin": "FRESHVIN0001",
@@ -238,26 +244,26 @@ async def test_latest_diagnosis_endpoint(client: httpx.AsyncClient, sample_vehic
             "engine_type": "1.5L Turbo",
         },
     )
-    missing = await client.get(f"/api/v1/vehicles/{fresh.json()['id']}/agent/diagnoses/latest")
+    missing = await auth_client.get(f"/api/v1/vehicles/{fresh.json()['id']}/agent/diagnoses/latest")
     assert missing.status_code == 404
 
 
 async def test_high_temperature_query_reports_critical(
-    client: httpx.AsyncClient, sample_vehicle: dict
+    auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     vehicle_id = sample_vehicle["id"]
     for index in range(40):
         payload = _payload_at(40 - index)
         payload["coolant_temperature"] = 115.0
-        response = await client.post(f"/api/v1/vehicles/{vehicle_id}/telemetry", json=payload)
+        response = await auth_client.post(f"/api/v1/vehicles/{vehicle_id}/telemetry", json=payload)
         assert response.status_code == 201, response.text
-    context = await _analyze(client, vehicle_id)
+    context = await _analyze(auth_client, vehicle_id)
     assert any(
         f["rule_id"] == "COOLANT_TEMP_HIGH" and f["severity"] == "critical"
         for f in context["findings"]
     )
 
-    response = await client.post(
+    response = await auth_client.post(
         f"/api/v1/vehicles/{vehicle_id}/agent/query",
         json={"query": "Engine is running hot. What should I do?"},
     )
@@ -266,3 +272,27 @@ async def test_high_temperature_query_reports_critical(
     assert payload["severity"] == "critical"
     evidence = payload["diagnosis"]["evidence"]
     assert any(item["rule_id"] == "COOLANT_TEMP_HIGH" for item in evidence)
+
+
+async def test_diagnoses_attribute_user_id(
+    auth_client: httpx.AsyncClient, other_user_client: httpx.AsyncClient, sample_vehicle: dict
+) -> None:
+    vehicle_id = sample_vehicle["id"]
+    response = await auth_client.post(
+        f"/api/v1/vehicles/{vehicle_id}/agent/query", json={"query": "Status?"}
+    )
+    assert response.status_code == 200
+
+    history = await auth_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/diagnoses")
+    assert history.status_code == 200
+    items = history.json()["items"]
+    assert len(items) == 1
+    assert items[0]["user_id"] is not None
+
+
+async def test_dashboard_requires_ownership(
+    auth_client: httpx.AsyncClient, other_user_client: httpx.AsyncClient, sample_vehicle: dict
+) -> None:
+    vehicle_id = sample_vehicle["id"]
+    response = await other_user_client.get(f"/api/v1/vehicles/{vehicle_id}/agent/dashboard")
+    assert response.status_code == 404

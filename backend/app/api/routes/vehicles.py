@@ -3,7 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
+from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_vehicle_service
+from app.models.user import User
 from app.schemas.common import PaginatedResponse
 from app.schemas.vehicle import VehicleCreate, VehicleResponse, VehicleUpdate
 from app.services.vehicle_service import VehicleService
@@ -15,14 +17,17 @@ router = APIRouter()
     "",
     response_model=PaginatedResponse[VehicleResponse],
     summary="List vehicles",
-    description="Paginated list of vehicles, newest first. Does not load telemetry.",
+    description="Paginated list of the caller's vehicles, newest first.",
 )
 async def list_vehicles(
     vehicle_service: Annotated[VehicleService, Depends(get_vehicle_service)],
+    user: Annotated[User, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PaginatedResponse[VehicleResponse]:
-    vehicles, total = await vehicle_service.list_vehicles(page=page, page_size=page_size)
+    vehicles, total = await vehicle_service.list_vehicles_for_user(
+        user, page=page, page_size=page_size
+    )
     return PaginatedResponse(
         items=[VehicleResponse.model_validate(v) for v in vehicles],
         page=page,
@@ -36,13 +41,14 @@ async def list_vehicles(
     response_model=VehicleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create vehicle",
-    description="Register a new vehicle. The VIN must be unique.",
+    description="Register a new vehicle owned by the caller. The VIN must be unique.",
 )
 async def create_vehicle(
     payload: VehicleCreate,
     vehicle_service: Annotated[VehicleService, Depends(get_vehicle_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> VehicleResponse:
-    vehicle = await vehicle_service.create_vehicle(payload)
+    vehicle = await vehicle_service.create_vehicle_for_user(payload, user=user)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -50,13 +56,14 @@ async def create_vehicle(
     "/{vehicle_id}",
     response_model=VehicleResponse,
     summary="Get vehicle",
-    description="Returns a single vehicle by ID.",
+    description="Returns a single vehicle by ID, if the caller owns it.",
 )
 async def get_vehicle(
     vehicle_id: UUID,
     vehicle_service: Annotated[VehicleService, Depends(get_vehicle_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> VehicleResponse:
-    vehicle = await vehicle_service.get_vehicle(vehicle_id)
+    vehicle = await vehicle_service.get_vehicle_for_user(vehicle_id, user)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -70,8 +77,9 @@ async def update_vehicle(
     vehicle_id: UUID,
     payload: VehicleUpdate,
     vehicle_service: Annotated[VehicleService, Depends(get_vehicle_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> VehicleResponse:
-    vehicle = await vehicle_service.update_vehicle(vehicle_id, payload)
+    vehicle = await vehicle_service.update_vehicle_for_user(vehicle_id, payload, user)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -84,6 +92,7 @@ async def update_vehicle(
 async def delete_vehicle(
     vehicle_id: UUID,
     vehicle_service: Annotated[VehicleService, Depends(get_vehicle_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
-    await vehicle_service.delete_vehicle(vehicle_id)
+    await vehicle_service.delete_vehicle_for_user(vehicle_id, user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

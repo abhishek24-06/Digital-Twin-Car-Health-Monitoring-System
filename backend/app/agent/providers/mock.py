@@ -46,6 +46,7 @@ class MockLLMProvider(LLMProvider):
     async def invoke(self, messages: list[BaseMessage]) -> ProviderCallResult:
         started = time.perf_counter()
         payload = _build_mock_payload(_extract_context(messages))
+        _inject_mock_manufacturer_guidance(payload, _sources_available(messages))
         latency_ms = (time.perf_counter() - started) * 1000.0
         return ProviderCallResult(
             content=json.dumps(payload, ensure_ascii=False),
@@ -74,6 +75,39 @@ def _extract_context(messages: list[BaseMessage]) -> dict[str, Any] | None:
                     return payload
             start = open_idx + 1
     return None
+
+
+def _sources_available(messages: list[BaseMessage]) -> int:
+    """Count the numbered manufacturer source lines supplied to the model."""
+    for message in reversed(messages):
+        content = getattr(message, "content", None)
+        if not isinstance(content, str):
+            continue
+        marker = "Sources:\n"
+        if marker not in content:
+            continue
+        tail = content.split(marker, 1)[1]
+        return sum(
+            1 for line in tail.splitlines() if line.strip().split(".", 1)[0].strip().isdigit()
+        )
+    return 0
+
+
+def _inject_mock_manufacturer_guidance(payload: dict[str, Any], sources: int) -> None:
+    """Deterministically echo the RAG evidence into the mock diagnosis.
+
+    Mirrors what an instruct-following model would do once manufacturer
+    guidance is part of the prompt: reference the first supplied source.
+    """
+    if sources <= 0:
+        payload["manufacturer_guidance"] = ""
+        payload["cited_sources"] = []
+        return
+    payload["manufacturer_guidance"] = (
+        "Mock manufacturer guidance: follow the supplied source materials; "
+        "no additional manufacturer claims are made."
+    )
+    payload["cited_sources"] = [1]
 
 
 def _build_mock_payload(context: dict[str, Any] | None) -> dict[str, Any]:

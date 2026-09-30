@@ -11,9 +11,11 @@ from app.core.exceptions import NotFoundError
 from app.intelligence.engine import HealthAnalysisEngine
 from app.intelligence.models import SUPPORTED_METRICS, AnalysisWindow, HealthContext, TelemetryPoint
 from app.models.health_snapshot import HealthSnapshot
+from app.models.user import User
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.services.vehicle_access import ensure_vehicle_access
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,38 @@ class VehicleHealthService:
         self._health_repository = health_repository
         self._settings = settings or get_settings()
         self._engine = engine or HealthAnalysisEngine()
+
+    async def analyze_vehicle_for_user(
+        self, vehicle_id: UUID, user: User, window_minutes: float | None = None
+    ) -> HealthSnapshot:
+        """User-scoped analyze: ownership is enforced below the router."""
+        await ensure_vehicle_access(self._vehicle_repository, vehicle_id, user)
+        return await self.analyze_vehicle(vehicle_id, window_minutes=window_minutes)
+
+    async def get_latest_for_user(self, vehicle_id: UUID, user: User) -> HealthSnapshot | None:
+        """User-scoped latest snapshot: ownership is enforced below the router."""
+        await ensure_vehicle_access(self._vehicle_repository, vehicle_id, user)
+        return await self.get_latest(vehicle_id)
+
+    async def list_history_for_user(
+        self,
+        vehicle_id: UUID,
+        user: User,
+        *,
+        page: int,
+        page_size: int,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[list[HealthSnapshot], int]:
+        """User-scoped history: ownership is enforced below the router."""
+        await ensure_vehicle_access(self._vehicle_repository, vehicle_id, user)
+        return await self.list_history(
+            vehicle_id,
+            page=page,
+            page_size=page_size,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     async def analyze_vehicle(
         self, vehicle_id: UUID, window_minutes: float | None = None

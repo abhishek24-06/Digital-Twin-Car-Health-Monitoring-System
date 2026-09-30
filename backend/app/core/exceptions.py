@@ -20,3 +20,19 @@ class ConflictError(AppError):
 
 class DatabaseError(AppError):
     """Raised when an unexpected database error prevents an operation."""
+
+
+class AuthenticationError(AppError):
+    """Raised when a request lacks or carries invalid credentials (401)."""
+
+    def __init__(self, detail: str = "Not authenticated") -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+class AuthorizationError(AppError):
+    """Raised when authenticated user lacks required privilege (403)."""
+
+    def __init__(self, detail: str = "Insufficient permissions") -> None:
+        self.detail = detail
+        super().__init__(detail)

@@ -17,6 +17,11 @@ class AgentState(TypedDict, total=False):
     trigger_type: TriggerType
     user_query: str
 
+    # User who initiated this run (attribution only). NULL for system-triggered
+    # and internal-process executions (e.g. MQTT critical events before the
+    # Phase 7 event pipeline).
+    user_id: UUID | None
+
     # Context gathered by the Vehicle Context Tool (deterministic layer).
     vehicle_context: dict[str, Any] | None
     serialized_context: str
@@ -28,6 +33,10 @@ class AgentState(TypedDict, total=False):
 
     # Reasoning produced either by the LLM or (when no context exists) canned.
     reasoning: dict[str, Any] | None
+
+    # RAG dispatch decisions + results from the Manufacturer Guidance Tool.
+    needs_rag: bool
+    manufacturer_guidance: dict[str, Any] | None
 
     # Provider/execution metadata from the LLM call.
     execution_metadata: dict[str, Any] | None

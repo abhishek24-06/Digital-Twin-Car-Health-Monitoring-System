@@ -9,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import DatabaseError, NotFoundError
 from app.models.telemetry import TelemetryRecord
+from app.models.user import User
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.telemetry import TelemetryCreate
+from app.services.vehicle_access import ensure_vehicle_access
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,33 @@ class TelemetryService:
     async def _ensure_vehicle_exists(self, vehicle_id: UUID) -> None:
         if await self._vehicle_repository.get_by_id(vehicle_id) is None:
             raise NotFoundError("Vehicle")
+
+    async def create_telemetry_for_user(
+        self, vehicle_id: UUID, data: TelemetryCreate, user: User
+    ) -> TelemetryRecord:
+        """User-scoped ingest: ownership is enforced below the router."""
+        await ensure_vehicle_access(self._vehicle_repository, vehicle_id, user)
+        return await self.create_telemetry(vehicle_id, data)
+
+    async def list_vehicle_telemetry_for_user(
+        self,
+        vehicle_id: UUID,
+        user: User,
+        *,
+        page: int,
+        page_size: int,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[list[TelemetryRecord], int]:
+        """User-scoped listing: ownership is enforced below the router."""
+        await ensure_vehicle_access(self._vehicle_repository, vehicle_id, user)
+        return await self.list_vehicle_telemetry(
+            vehicle_id,
+            page=page,
+            page_size=page_size,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
     async def create_telemetry(self, vehicle_id: UUID, data: TelemetryCreate) -> TelemetryRecord:
         """Persist a telemetry sample, skipping duplicates by source_event_id.

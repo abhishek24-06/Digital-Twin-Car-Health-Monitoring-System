@@ -20,7 +20,7 @@ from tests.conftest import unique_vin
 
 
 @pytest_asyncio.fixture
-async def session(session_factory: async_sessionmaker[AsyncSession]) -> AsyncSession:
+async def session(session_factory: async_sessionmaker[AsyncSession], clean_db) -> AsyncSession:
     async with session_factory() as s:
         yield s
 

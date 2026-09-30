@@ -53,6 +53,11 @@ class AgentDiagnosisItem(BaseModel):
     model: str | None = None
     fallback_used: bool = False
     latency_ms: float | None = None
+    rag_used: bool = False
+    rag_evidence_count: int = 0
+    rag_embedding_model: str | None = None
+    rag_reranker_model: str | None = None
+    user_id: UUID | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

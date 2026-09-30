@@ -12,6 +12,11 @@ it through a REST API. **Phase 4** adds an **agentic vehicle reasoning** layer:
 a LangGraph supervisor workflow grounds natural-language queries and critical
 telemetry events through a controlled Vehicle Context tool and the deterministic
 health context, and persists structured diagnoses the LLM can never overwrite.
+**Phase 6** adds **identity, roles & vehicle ownership**: JWT access tokens
+(PyJWT, HMAC-signed) + rotating, hashed, revocable refresh tokens (bcrypt
+password hashing), `user`/`admin` roles, and per-user vehicle ownership with
+end-to-end IDOR protection across the vehicle, telemetry, health, agent and RAG
+endpoints.
 
 ## 1. Project overview
 
@@ -117,9 +122,66 @@ code the MQTT subscriber uses.
   real API keys required; live LLM smoke gated behind `RUN_LLM_SMOKE_TEST=true`
   (`scripts/smoke_agent_llm.py` / `make agent-llm-smoke`)
 
-**Not implemented (later phases):** RAG/manufacturer manuals (Phase 5), PDF
-reports (Phase 7), Next.js dashboard (Phase 8), ML prediction, authentication/
-JWT, pgvector/embeddings, TimescaleDB features.
+**Phase 5 (manufacturer documentation RAG):**
+- `app/rag/` hybrid retrieval stack: structure-aware chunking, plain-text /
+  markdown parsing, pgvector dense embeddings (`BAAI/bge-m3`, 1024-dim),
+  Postgres FTS lexical (`content_tsv` + GIN), fusion, scope filtering
+  (EXACT_VEHICLE > MODEL > MAKE > GENERIC) and reranking
+  (`BAAI/bge-reranker-v2-m3`)
+- Scaled, versioned corpus: `rag_documents` (unique `canonical_source`),
+  immutable `rag_document_versions` (content_hash, embedding_model/dimension,
+  chunking_version) and `rag_chunks` (heading_path, page/char offsets,
+  frame, `embedding_store vector(1024)` + HNSW cosine index) — Alembic
+  migration `4f9d3c2b1a8e`
+- Idempotent + atomic ingestion: re-ingesting the same source is a no-op
+  (`unchanged v<n>`), never a duplicate version row
+- LangGraph integration: the agent's `ManufacturerGuidanceTool` retrieves
+  scoped evidence and feeds a citation-backed guidance section into the prompt;
+  diagnostics persist `rag_used`, `rag_evidence_count`, `rag_embedding_model`,
+  `rag_reranker_model`, `rag_scope` (migration `b8c3e1d4a9f7`)
+- Retrieved documents are **data, never instructions**: prompt-injection
+  resistance, negative grounding (no results → no claims) and a clean
+  RAG-disabled fallback to Phase 4 behaviour are all live-verified
+- Read-only admin API (`/api/v1/rag/health`, `/api/v1/rag/search`) + CLI
+  (`scripts/ingest_documents.py`, `scripts/query_rag.py`)
+- Live verification harness `scripts/phase5_agent_rag_verify.py` (real
+  models against Supabase) plus `tests/rag/` (43 test nodes); tests run
+  offline on stub adapters unless RAG is explicitly enabled
+
+**Not implemented (later phases):** PDF reports (Phase 7), Next.js dashboard
+(Phase 8), ML prediction, TimescaleDB features, vehicle sharing, soft delete.
+
+**Phase 6 (identity, roles & vehicle ownership):**
+- `users` table (`role` = `user` | `admin`, bcrypt `password_hash`, active
+  flag, timestamps) + `refresh_tokens` table (`SHA-256 token_hash`, expiry,
+  revoked_at) — Alembic migration `d6a9b1c2e3f4`
+- **Register / login / logout / refresh / me** under `/api/v1/auth`:
+  `POST /auth/register` (422 on unknown fields, including `role`/`is_active`
+  escalation attempts), `POST /auth/login` (identical 401 for unknown email vs
+  wrong password — no account probing), `POST /auth/refresh` (one-time rotating
+  refresh tokens stored only as hashes; reuse-after-revocation revokes every
+  token for that user), `POST /auth/logout` (idempotent revoke), `GET /auth/me`
+- Access JWT (`JWT_SECRET`-signed, `type=access`, short-lived
+  `AUTH_ACCESS_TOKEN_MINUTES`) verified by `get_current_user`; the user is
+  **re-read from the database on every request** so `is_active`/`role` can't
+  be smuggled through a stale token
+- **Vehicle ownership**: `vehicles.owner_user_id` (nullable FK, ON DELETE
+  SET NULL). All vehicle-family endpoints are scoped via `ensure_vehicle_access`
+  (admins bypass; non-owners get 404 so vehicle existence is never leaked):
+  vehicles CRUD, telemetry create/list, health analyze/get/history, agent
+  query/events/dashboard/diagnoses, and per diagnostic the agent run persists
+  the requesting `user_id`
+- `GET/PATCH /api/v1/users/me` — self-service profile (only `full_name`
+  editable; 422 otherwise)
+- RAG admin surface minimum protection: `GET /api/v1/rag/health` is
+  admin-only (403 for non-admins), `GET /api/v1/rag/search` requires any
+  authenticated user
+- Security settings hardened in `app/core/security.py` + config:
+  `JWT_SECRET` minimum length, `JWT_ALGORITHM` whitelist, access-token expiry
+  bounds; `SecuritySettings` tests in `tests/core/test_security_settings.py`
+- New tests: `tests/api/test_auth.py` (flow + rotation + tampering),
+  `tests/api/test_authorization.py` (IDOR matrix), plus auth-aware rewrites of
+  the vehicle/telemetry/health/agent/RAG suites
 
 ## 3. Architecture
 
@@ -171,6 +233,7 @@ route does. Idempotency lives in the service; the unique
 | Agent            | LangGraph state graph + supervisor pattern (Phase 4) |
 | LLM SDK          | LangChain (langchain-openai) over OpenAI-compatible endpoints |
 | Migrations       | Alembic                           |
+| Auth             | PyJWT (access tokens), bcrypt (password hashes), SHA-256 refresh-token hashes (Phase 6) |
 | MQTT client      | aiomqtt 2.x (asyncio wrapper over paho-mqtt) |
 | Broker           | Mosquitto (Docker / local)        |
 | Database         | PostgreSQL 16+ (local dev) / Supabase managed PostgreSQL (deployment) |
@@ -189,10 +252,15 @@ backend/
 │   │   └── routes/
 │   │       ├── health.py  ├── vehicles.py  ├── telemetry.py
 │   │       ├── vehicle_health.py       └── agent.py       # Phase 4 agent API
+│   │       ├── auth.py  ├── users.py                      # Phase 6 identity
 │   ├── core/
-│   │   ├── config.py            # Settings (env / .env) incl. MQTT_*
+│   │   ├── config.py            # Settings (env / .env) incl. MQTT_* / AUTH_*
 │   │   ├── database.py          # Async engine + session factory + health probe
+│   │   ├── security.py          # bcrypt + PyJWT helpers (Phase 6)
 │   │   ├── exceptions.py        ├── logging.py
+│   ├── dependencies/
+│   │   ├── auth.py              # get_current_user / require_admin (Phase 6)
+│   │   ├── database.py          # service providers incl. auth/user services
 │   ├── mqtt/                    # Phase 2 ingestion package
 │   │   ├── topics.py            # Topic build/parse (single source of truth)
 │   │   ├── schemas.py           # TelemetryMessage / StatusMessage envelopes
@@ -221,6 +289,9 @@ backend/
 │   │   ├── state.py  nodes.py  graph.py  service.py     # LangGraph + AgentService
 │   ├── models/  ├── schemas/  ├── repositories/  ├── services/
 │   │   ├── agent_diagnosis.py  └── agent_diagnosis_repository.py  # Phase 4
+│   │   ├── user.py  ├── refresh_token.py               # Phase 6 models
+│   │   ├── schemas/auth.py  schemas/user.py            # Phase 6 schemas
+│   │   ├── services/auth_service.py  services/vehicle_access.py  # Phase 6
 │   └── dependencies/
 ├── simulator/                   # Phase 2 vehicle simulator
 │   ├── config.py                # SIMULATOR_* + shared MQTT_* settings
@@ -273,6 +344,11 @@ environment variables.
 `HEALTH_ANALYSIS_WINDOW_MINUTES`/`HEALTH_MINIMUM_SAMPLES`/`HEALTH_EXPECTED_INTERVAL_SECONDS`/
 `HEALTH_BASELINE_WINDOW_MINUTES`/`HEALTH_BASELINE_MINIMUM_SAMPLES` (see
 `.env.example`).
+
+Phase 6 auth settings: `JWT_SECRET` (required; at least 32 characters —
+startup fails with a clear message if it is missing/short),
+`JWT_ALGORITHM` (HS256 default), `AUTH_ACCESS_TOKEN_MINUTES` (default 20),
+`AUTH_REFRESH_TOKEN_DAYS` (default 30). See `.env.example`.
 
 ## 7. MQTT message format
 
@@ -442,7 +518,7 @@ the exact same commands used locally:
 make db-check      # independent asyncpg probe; prints server version + TLS
 make db-current    # confirm state (empty/new project shows "<base>")
 make migrate       # alembic upgrade head  (applies all migrations)
-make db-current    # confirm head == a1b2c3d4e5f6
+make db-current    # confirm head == d6a9b1c2e3f4
 ```
 
 `alembic upgrade head` creates `vehicles`, `telemetry_records` (partial unique
@@ -490,7 +566,7 @@ hosted (`supabase`/`pooler`), because the fixtures drop and truncate tables.
 | ---- | ------ |
 | 1 | Stop the API / subscriber / simulator |
 | 2 | In `backend/.env`, set `DATABASE_URL` back to `postgresql+asyncpg://postgres:postgres@localhost:5432/digital_twin` |
-| 3 | `make db-current` — local upgraded (stays at `a1b2c3d4e5f6`) |
+| 3 | `make db-current` — local upgraded (stays at `d6a9b1c2e3f4`) |
 | 4 | `make dev` — everything works against local PostgreSQL again |
 
 No application code was changed during the migration, so nothing else to
@@ -564,6 +640,18 @@ Phase 4 agent migration (`c7f2e8a1b3d4_create_agent_diagnoses`):
 - composite indexes `(vehicle_id, created_at)` and
   `(vehicle_id, trigger_type, created_at)`
 - `downgrade` drops the table
+
+Phase 6 identity migration (`d6a9b1c2e3f4_phase6_identity_roles_vehicle_ownership`):
+
+- creates `users` (`role` CHECK `user|admin`, `password_hash`, `is_active`,
+  timestamps) and `refresh_tokens` (`token_hash` SHA-256, `expires_at`,
+  `revoked_at`, `user_id` FK CASCADE, index on `token_hash`)
+- adds nullable `vehicles.owner_user_id` (FK→users ON DELETE SET NULL + index)
+  plus non-null `source_type` CHECK `simulator|real` and `status` CHECK
+  `active|disabled`, `simulation_enabled BOOLEAN DEFAULT false`
+- adds nullable `agent_diagnoses.user_id` (FK→users ON DELETE SET NULL,
+  attribution of who triggered each agent run)
+- symmetric `downgrade` restores the Phase 5 shape
 
 ## 12. Vehicle Health Context (Phase 3)
 
@@ -658,6 +746,12 @@ The suite:
   and retry/fallback routing, deterministic severity/confidence, evidence
   grounding, and the full agent API (query, critical-event dedup, no-LLM
   dashboard, history, latest) — all on `MockLLMProvider`, no real API keys
+- **rag (`tests/rag/`)**: chunking/scope/parser unit tests, embedding/reranker
+  stub adapters, retrieval select+rerank, service / repository integration
+  round-trips, agent guidance-tool units (21) and admin-API contracts — run
+  offline on stubs; the pgvector-gated integration tests skip unless a local
+  pgvector DB is present and are covered live by
+  `scripts/phase5_agent_rag_verify.py`
 - **subscriber (mocked MQTT)**: valid → persisted; duplicate → skipped;
   invalid JSON / envelope/topic mismatch / unknown vehicle → skipped without
   raising
@@ -685,33 +779,62 @@ Interactive docs are served by FastAPI:
 | ------ | ------------------------------------- | ---------------------------------- |
 | GET    | `/api/v1/health`                      | Liveness (no DB touch)             |
 | GET    | `/api/v1/health/db`                   | Database reachability (`SELECT 1`) |
-| GET    | `/api/v1/vehicles`                    | List vehicles (paginated)          |
-| POST   | `/api/v1/vehicles`                    | Create vehicle (201)               |
-| GET    | `/api/v1/vehicles/{id}`               | Get vehicle                        |
-| PATCH  | `/api/v1/vehicles/{id}`               | Update mutable metadata            |
-| DELETE | `/api/v1/vehicles/{id}`               | Delete vehicle (cascade telemetry) |
-| GET    | `/api/v1/vehicles/{id}/telemetry`     | List telemetry (paginated, time filter) |
-| POST   | `/api/v1/vehicles/{id}/telemetry`     | Store a telemetry sample (201)     |
-| POST   | `/api/v1/vehicles/{id}/health/analyze`| Analyze + persist a health snapshot (window_minutes 1–1440) |
-| GET    | `/api/v1/vehicles/{id}/health`        | Latest persisted health context     |
-| GET    | `/api/v1/vehicles/{id}/health/history`| Paginated health snapshot history   |
-| POST   | `/api/v1/vehicles/{id}/agent/query`   | Natural-language question → grounded diagnosis (LLM) |
-| POST   | `/api/v1/vehicles/{id}/agent/events/critical` | Diagnose a critical telemetry event (LLM; dedup within cooldown) |
-| GET    | `/api/v1/vehicles/{id}/agent/dashboard`   | Dashboard hook — health context + latest diagnosis (no LLM) |
-| GET    | `/api/v1/vehicles/{id}/agent/diagnoses`   | Paginated agent diagnosis history  |
-| GET    | `/api/v1/vehicles/{id}/agent/diagnoses/latest` | Latest persisted diagnosis (404 if none) |
+| POST   | `/api/v1/auth/register`               | Create a `user` account (201)      |
+| POST   | `/api/v1/auth/login`                  | Exchange email/password for tokens |
+| POST   | `/api/v1/auth/refresh`                | Rotate a refresh token (one-time)  |
+| POST   | `/api/v1/auth/logout`                 | Revoke the refresh token (204)     |
+| GET    | `/api/v1/auth/me`                     | Current user profile (401 guard)   |
+| GET    | `/api/v1/users/me`                    | Get my profile (Auth required)     |
+| PATCH  | `/api/v1/users/me`                    | Update `full_name` (Auth required) |
+| GET    | `/api/v1/vehicles`                    | List my vehicles (paginated)       |
+| POST   | `/api/v1/vehicles`                    | Create vehicle owned by me (201)   |
+| GET    | `/api/v1/vehicles/{id}`               | Get vehicle (owner/admin only)     |
+| PATCH  | `/api/v1/vehicles/{id}`               | Update mutable metadata (owner/admin only; `vin`/security fields 422) |
+| DELETE | `/api/v1/vehicles/{id}`               | Delete vehicle — cascade telemetry (owner/admin only, 204) |
+| GET    | `/api/v1/vehicles/{id}/telemetry`     | List telemetry (owner/admin, paginated, time filter) |
+| POST   | `/api/v1/vehicles/{id}/telemetry`     | Store a telemetry sample (owner/admin, 201) |
+| POST   | `/api/v1/vehicles/{id}/health/analyze`| Analyze + persist a health snapshot (owner/admin; window_minutes 1–1440) |
+| GET    | `/api/v1/vehicles/{id}/health`        | Latest persisted health context (owner/admin) |
+| GET    | `/api/v1/vehicles/{id}/health/history`| Paginated health snapshot history (owner/admin) |
+| POST   | `/api/v1/vehicles/{id}/agent/query`   | Natural-language question → grounded diagnosis (owner/admin, LLM) |
+| POST   | `/api/v1/vehicles/{id}/agent/events/critical` | Diagnose a critical telemetry event (owner/admin, LLM; dedup within cooldown) |
+| GET    | `/api/v1/vehicles/{id}/agent/dashboard`   | Dashboard hook — health context + latest diagnosis (owner/admin, no LLM) |
+| GET    | `/api/v1/vehicles/{id}/agent/diagnoses`   | Paginated agent diagnosis history (owner/admin) |
+| GET    | `/api/v1/vehicles/{id}/agent/diagnoses/latest` | Latest persisted diagnosis (owner/admin, 404 if none) |
+| GET    | `/api/v1/rag/health`  | RAG status — adapters, pgvector, corpus counts (**admin only**, 403 otherwise) |
+| GET    | `/api/v1/rag/search`  | Scoped hybrid search (`q` required; any authenticated user) |
+| POST   | `/api/v1/admin/rag/documents` | Ingest a manufacturer document (multipart, 201; **admin only**) |
+| GET    | `/api/v1/admin/rag/documents` | Paginated corpus documents + filters (**admin only**) |
+| GET    | `/api/v1/admin/rag/documents/{id}` | Document detail + version history (**admin only**) |
+| DELETE | `/api/v1/admin/rag/documents/{id}` | Delete document, versions and vectors (204; **admin only**) |
 
-All routes are versioned under `/api/v1`.
+All routes are versioned under `/api/v1`. Vehicle-family endpoints require
+`Authorization: Bearer <access_token>` and, for non-admin accounts, ownership
+of the target vehicle (non-owners receive 404 — vehicle existence is never
+revealed). Health endpoints stay public.
 
 ## 16. Example API requests
 
 ```bash
-# Health
+# Health (public)
 curl http://localhost:8000/api/v1/health
 curl http://localhost:8000/api/v1/health/db
 
-# Create a vehicle
+# --- Phase 6: register / login (all vehicle routes need a bearer token) ---
+JWT_SECRET="..."  # or keep in .env (must be >= 32 chars)
+
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "Sup3rSecret!", "full_name": "Ada"}'
+# => {"access_token": ..., "refresh_token": ..., "expires_in": 1200, "user": {...}}
+
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "Sup3rSecret!"}'
+
+# Create a vehicle (owned by the calling user)
 curl -X POST http://localhost:8000/api/v1/vehicles \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "vin": "TESTVIN123456789",
@@ -720,6 +843,16 @@ curl -X POST http://localhost:8000/api/v1/vehicles \
     "year": 2024,
     "engine_type": "2.5L Petrol"
   }'
+
+# Rotate the refresh token (old value becomes unusable)
+curl -X POST http://localhost:8000/api/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "$REFRESH_TOKEN"}'
+
+# Logout revokes the refresh token (204)
+curl -X POST http://localhost:8000/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "$REFRESH_TOKEN"}'
 
 # Store telemetry for a vehicle (optional source_event_id enables idempotency)
 curl -X POST http://localhost:8000/api/v1/vehicles/<vehicle_id>/telemetry \
@@ -786,9 +919,11 @@ increases with speed, engine runtime only accumulates while not `OFF`.
 
 | HTTP | Meaning                       |
 | ---- | ----------------------------- |
-| 404  | Resource does not exist       |
-| 409  | Conflict (e.g. duplicate VIN) |
-| 422  | Request validation failed     |
+| 401  | Not authenticated / invalid or expired bearer token (Phase 6) |
+| 403  | Authenticated but forbidden (requires `admin`; also RAG `/health`) |
+| 404  | Resource does not exist (or, for non-owners, a vehicle that does exist — no existence leak) |
+| 409  | Conflict (e.g. duplicate VIN, duplicate email) |
+| 422  | Request validation failed (incl. forbidden registration/profile fields) |
 | 500  | Agent misconfiguration / graph execution failure |
 | 502  | LLM provider error (bad request, auth, provider failure, invalid structured output) |
 | 503  | LLM provider rate limiting    |
@@ -802,13 +937,156 @@ provider exceptions are sanitized into the agent taxonomy above.
 
 ## 19. Intentionally not implemented (yet)
 
-- Manufacturer-manual RAG (Phase 5), PDF reports (Phase 7), Next.js dashboard
-  (Phase 8).
+- PDF reports (Phase 7), Next.js dashboard (Phase 8).
 - The Phase 3 health engine is fully deterministic: no LLM, no ML, and no
   prior/manual data are used anywhere in the analysis pipeline.
-- The Phase 4 agent has no RAG/embeddings, no vector store, no long-term
-  memory/history beyond the persisted diagnoses, and no tool access beyond the
-  controlled Vehicle Context tool — the LLM cannot touch the database, SQL, or
-  repositories directly.
-- Authentication/JWT, pgvector/embeddings, anomaly analytics, and any
-  TimescaleDB-specific behaviour.
+- The Phase 4 agent has no long-term memory/history beyond the persisted
+  diagnoses and no tool access beyond the controlled Vehicle Context tool and
+  (Phase 5) the Manufacturer Guidance tool — the LLM cannot touch the
+  database, SQL, or repositories directly.
+- Vehicle sharing (multiple owners per vehicle), soft delete, and account
+  management beyond self-service profile updates are not implemented. Refresh
+  tokens are single-use and rotation-based; no surrounding device/session
+  management is exposed.
+- Anomaly analytics and any TimescaleDB-specific behaviour.
+
+## 20. Manufacturer Documentation RAG (Phase 5)
+
+`RAG_ENABLED` (default `true` outside tests) gates the whole feature; every
+other setting has a default and sensible bounds. Real models are only loaded
+when RAG is enabled and used — the offline test suite (`RAG_ENABLED=false` in
+`tests/conftest.py`) never touches Hugging Face.
+
+### Schema (Alembic `4f9d3c2b1a8e` → `d6a9b1c2e3f4`, applied to Supabase)
+
+```txt
+rag_documents            canonical_source UNIQUE, make/model/year range, title
+rag_document_versions    immutable: content_hash, embedding_model (bge-m3),
+                         embedding_dimension, chunking_version, UNIQUE(document_id, version)
+rag_chunks               content_plain, content_tsv (GIN), scope + make/model/year,
+                         embedding_store vector(1024) + HNSW vector_cosine_ops
+agent_diagnoses          + rag_used, rag_evidence_count, rag_embedding_model,
+                         rag_reranker_model, rag_scope (JSONB)
+```
+
+### Agent grounding
+
+- `ManufacturerGuidanceTool` runs during agent execution when RAG is enabled:
+  derives the vehicle scope, runs hybrid retrieval + rerank, applies a
+  threshold, and injects a citation-backed guidance section (with provenance)
+  into the prompt only when evidence exists.
+- Citations map to actually-retrieved chunks; `rag_evidence_count` records how
+  many were used; the diagnosis row stores `rag_used`,
+  `rag_embedding_model`, `rag_reranker_model`, `rag_scope`.
+- Guardrails (all live-verified): retrieved documents are treated as **data,
+  not instructions** (prompt-injection tested), a nonsense/no-result query
+  yields **zero** manufacturer claims (negative grounding), and `RAG_ENABLED=
+  false` reproduces Phase 4 behaviour exactly (no guidance, `rag_used=False`).
+
+### Ingest docs
+
+```bash
+python scripts/ingest_documents.py manual.md --canonical rep://acme/manual --make Acme --model Camry --year 2024
+python scripts/query_rag.py "coolant level" --make Acme --model Camry --year 2024 --top-k 3
+python scripts/phase5_agent_rag_verify.py   # real BGE-M3 + reranker, live Supabase E2E
+```
+
+BGE-M3/reranker weights are cached locally; the verifier pins
+`HF_HUB_OFFLINE=1` etc. The corpus on Supabase is currently empty (cleaned up
+after verification) until documents are (re-)ingested.
+
+## 21. Admin document management (Phase 6.x)
+
+The manufacturer corpus can also be managed over HTTP by an **admin** user. The
+API adds only an upload/safety layer on top of the Phase 5 pipeline — the same
+`IngestionService` (`parse → chunk → embed → persist`) backs both
+`scripts/ingest_documents.py` and these endpoints, so versioning, content-hash
+deduplication and failure semantics are identical on both paths. **No schema
+change was required** (Phase 5 tables already hold every field).
+
+All four endpoints require `role=admin` (401 unauthenticated, 403 non-admin):
+
+| Method | Path | Success | Purpose |
+| ------ | ---- | ------- | ------- |
+| `POST` | `/api/v1/admin/rag/documents` | `201` | Ingest one document (multipart) |
+| `GET` | `/api/v1/admin/rag/documents` | `200` | Paginated list + filters |
+| `GET` | `/api/v1/admin/rag/documents/{id}` | `200` | Detail + immutable version history |
+| `DELETE` | `/api/v1/admin/rag/documents/{id}` | `204` | Transactional delete of document + versions + chunks/vectors |
+
+### Upload
+
+```bash
+curl -X POST http://localhost:8000/api/v1/admin/rag/documents \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -F "file=@service_manual.pdf" \
+  -F "canonical=rep://toyota/camry/2024/service-manual" \
+  -F "make=Toyota" -F "model=Camry" -F "year=2024" \
+  -F "document_type=service-manual"
+```
+
+- `file` and `canonical` are required; `make`, `model`, `year` and the optional
+  `manufacturer`, `title`, `source_uri`, `source_type`, `document_type`,
+  `year_end`, `language` mirror the existing `IngestionService.ingest` kwargs —
+  no invented metadata. Any other form field is rejected (`422`).
+- Accepted extensions come from the parser registry, never a second hardcoded
+  list: `.pdf .docx .doc .rtf .pptx .ppt .html .mhtml .xlsx .xls .odt .ods
+  .odp .epub .txt .md .text`.
+- Size ceiling `RAG_MAX_UPLOAD_SIZE_MB` (default `50`); the upload is streamed
+  in 1 MiB chunks and aborted with `413` the moment it exceeds the limit.
+- Response: `201` with `status` `ingested` (new document/version) or `unchanged`
+  (identical content already present — Phase 5 idempotency), plus `version`,
+  `chunks_created`, `content_hash`, `parser_name`, `embedding_model` and
+  `embedding_dimension`.
+
+```json
+{
+  "id": "3f2c...", "status": "ingested", "filename": "service_manual.pdf",
+  "canonical": "rep://toyota/camry/2024/service-manual", "make": "Toyota",
+  "model": "Camry", "year": 2024, "version": 1, "chunks_created": 42,
+  "content_hash": "9ab1...", "parser_name": "docling-2",
+  "embedding_model": "BAAI/bge-m3", "embedding_dimension": 1024
+}
+```
+
+### List / detail / delete
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:8000/api/v1/admin/rag/documents?page=1&page_size=20&make=Toyota&status=completed"
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:8000/api/v1/admin/rag/documents/$DOC_ID
+curl -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:8000/api/v1/admin/rag/documents/$DOC_ID
+```
+
+List uses the shared `PaginatedResponse` envelope (`items`, `page`, `page_size`,
+`total`) with `page >= 1`, `page_size` 1..100 and exact filters `make`, `model`,
+`canonical`, model-year range `year`, and `status` (a version ingestion state).
+Detail adds the version history (content hash, parser, chunk counts, status per
+version) plus `latest_version`. Delete removes chunks → versions → document in
+one transaction (the Phase 5 foreign keys are *not* `ON DELETE CASCADE`), so no
+orphaned vectors remain and RAG search stops returning the content immediately.
+
+### Safety and error semantics
+
+| Status | Cause |
+| ------ | ----- |
+| `400` | Unsupported extension, empty file, non-UTF-8 text, unsafe/path-traversal filename |
+| `413` | Upload exceeds `RAG_MAX_UPLOAD_SIZE_MB` |
+| `422` | Invalid metadata / unknown form field, or ingestion failure (transaction rolled back) |
+| `404` | Unknown `document_id` |
+| `503` | RAG backend unavailable (pgvector missing) |
+
+Uploads are streamed to a throwaway temp directory (`tempfile.mkdtemp`,
+`uuid4().hex` file name) and removed on every exit path — success, validation
+error or ingestion failure. The client-supplied filename is never used as a
+path, and it is rejected outright if it contains directory separators, `..` or a
+NUL byte.
+
+### Testing
+
+`tests/rag/test_admin_documents_api.py` (39 hermetic tests: authorization matrix,
+validation, pagination envelope, 404/503 mapping, temp-file hygiene) and
+`tests/rag/test_admin_documents_integration.py` (full upload → search → delete
+lifecycle, idempotent re-upload, failed-ingest rollback). The integration file
+is pgvector-gated and skips when the test database lacks the extension.

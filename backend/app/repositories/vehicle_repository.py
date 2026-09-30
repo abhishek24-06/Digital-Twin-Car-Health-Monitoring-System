@@ -20,6 +20,13 @@ class VehicleRepository:
         statement = select(Vehicle).where(Vehicle.id == vehicle_id)
         return await self._session.scalar(statement)
 
+    async def get_by_id_and_owner(self, vehicle_id: UUID, owner_user_id: UUID) -> Vehicle | None:
+        statement = select(Vehicle).where(
+            Vehicle.id == vehicle_id,
+            Vehicle.owner_user_id == owner_user_id,
+        )
+        return await self._session.scalar(statement)
+
     async def get_by_vin(self, vin: str) -> Vehicle | None:
         statement = select(Vehicle).where(Vehicle.vin == vin)
         return await self._session.scalar(statement)
@@ -28,6 +35,22 @@ class VehicleRepository:
         total = await self._session.scalar(select(func.count()).select_from(Vehicle))
         statement = (
             select(Vehicle)
+            .order_by(Vehicle.created_at.desc(), Vehicle.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self._session.scalars(statement)
+        return list(result.all()), int(total or 0)
+
+    async def list_by_owner(
+        self, owner_user_id: UUID, *, page: int, page_size: int
+    ) -> tuple[list[Vehicle], int]:
+        total = await self._session.scalar(
+            select(func.count()).select_from(Vehicle).where(Vehicle.owner_user_id == owner_user_id)
+        )
+        statement = (
+            select(Vehicle)
+            .where(Vehicle.owner_user_id == owner_user_id)
             .order_by(Vehicle.created_at.desc(), Vehicle.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)

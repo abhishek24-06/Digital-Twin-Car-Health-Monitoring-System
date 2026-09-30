@@ -2,7 +2,8 @@
 
 All endpoints live under ``/vehicles/{vehicle_id}/agent`` and route through
 :class:`app.agent.service.AgentService`. Only user queries and critical events
-invoke the LLM; the dashboard hook and history endpoints never do.
+invoke the LLM; the dashboard hook and history endpoints never do. Every
+endpoint is scoped to the authenticated caller's own vehicles.
 """
 
 from __future__ import annotations
@@ -14,7 +15,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.agent.schemas import DiagnosisResponse
 from app.agent.service import AgentService
+from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_agent_service
+from app.models.user import User
 from app.schemas.agent import (
     AgentDiagnosisItem,
     AgentQueryRequest,
@@ -41,8 +44,9 @@ async def ask_agent(
     vehicle_id: UUID,
     payload: AgentQueryRequest,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> DiagnosisResponse:
-    return await agent_service.run_user_query(vehicle_id, payload.query)
+    return await agent_service.run_user_query(vehicle_id, payload.query, user=user)
 
 
 @router.post(
@@ -60,8 +64,9 @@ async def diagnose_critical_event(
     vehicle_id: UUID,
     payload: CriticalEventRequest,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> DiagnosisResponse:
-    return await agent_service.run_critical_event(vehicle_id, payload.rule_ids)
+    return await agent_service.run_critical_event(vehicle_id, payload.rule_ids, user=user)
 
 
 @router.get(
@@ -76,8 +81,9 @@ async def diagnose_critical_event(
 async def agent_dashboard(
     vehicle_id: UUID,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> DashboardResponse:
-    payload = await agent_service.get_dashboard_context(vehicle_id)
+    payload = await agent_service.get_dashboard_context(vehicle_id, user=user)
     return DashboardResponse(
         vehicle_id=payload["vehicle_id"],
         generated_at=payload["generated_at"],
@@ -104,10 +110,13 @@ async def agent_dashboard(
 async def list_agent_diagnoses(
     vehicle_id: UUID,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    user: Annotated[User, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PaginatedResponse[AgentDiagnosisItem]:
-    records, total = await agent_service.list_diagnoses(vehicle_id, page=page, page_size=page_size)
+    records, total = await agent_service.list_diagnoses(
+        vehicle_id, page=page, page_size=page_size, user=user
+    )
     return PaginatedResponse(
         items=[AgentDiagnosisItem.model_validate(record) for record in records],
         page=page,
@@ -125,8 +134,9 @@ async def list_agent_diagnoses(
 async def get_latest_agent_diagnosis(
     vehicle_id: UUID,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> DiagnosisResponse:
-    record = await agent_service.get_latest_diagnosis(vehicle_id)
+    record = await agent_service.get_latest_diagnosis(vehicle_id, user=user)
     if record is None:
         raise HTTPException(
             status_code=404,
