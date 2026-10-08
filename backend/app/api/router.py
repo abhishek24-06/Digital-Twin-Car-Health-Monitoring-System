@@ -6,6 +6,7 @@ from app.api.routes import (
     auth,
     health,
     rag,
+    simulation,
     telemetry,
     users,
     vehicle_health,
@@ -32,6 +33,16 @@ api_router.include_router(
     agent.router,
     prefix="/vehicles/{vehicle_id}/agent",
     tags=["Agent"],
+)
+api_router.include_router(
+    simulation.vehicle_simulation_router,
+    prefix="/vehicles/{vehicle_id}/simulation",
+    tags=["Simulation"],
+)
+api_router.include_router(
+    simulation.simulations_router,
+    prefix="/simulations",
+    tags=["Simulation"],
 )
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG"])
 api_router.include_router(admin_rag.router, prefix="/admin", tags=["Admin RAG"])

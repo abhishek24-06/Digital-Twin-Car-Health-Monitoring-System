@@ -59,6 +59,36 @@ async def test_register_rejects_weak_password(client: httpx.AsyncClient) -> None
     assert response.status_code == 422
 
 
+async def test_register_rejects_password_over_72_bytes(client: httpx.AsyncClient) -> None:
+    """bcrypt caps input at 72 bytes, so an oversized password is a 422, not a 500."""
+    response = await client.post("/api/v1/auth/register", json=_register_payload(password="a" * 73))
+
+    assert response.status_code == 422
+
+
+async def test_register_rejects_multibyte_password_over_72_bytes(
+    client: httpx.AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/register", json=_register_payload(password="💥" * 19)
+    )
+
+    assert response.status_code == 422
+
+
+async def test_register_accepts_exactly_72_ascii_bytes(client: httpx.AsyncClient) -> None:
+    response = await client.post("/api/v1/auth/register", json=_register_payload(password="a" * 72))
+
+    assert response.status_code == 201
+
+
+async def test_login_rejects_password_over_72_bytes(client: httpx.AsyncClient) -> None:
+    await client.post("/api/v1/auth/register", json=_register_payload())
+    response = await client.post("/api/v1/auth/login", json={"email": EMAIL, "password": "a" * 73})
+
+    assert response.status_code == 422
+
+
 async def test_register_rejects_invalid_email(client: httpx.AsyncClient) -> None:
     response = await client.post("/api/v1/auth/register", json=_register_payload(email="nope"))
 
@@ -182,3 +212,75 @@ async def test_stale_access_token_rejected(client: httpx.AsyncClient) -> None:
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {access[:-3]}xxx"}
     )
     assert tampered.status_code == 401
+
+
+NEW_PASSWORD = "N3wSecret!!"
+
+
+async def test_change_password_requires_auth(client: httpx.AsyncClient) -> None:
+    response = await client.patch(
+        "/api/v1/auth/password",
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+    )
+
+    assert response.status_code == 401
+
+
+async def test_change_password_happy_path(client: httpx.AsyncClient) -> None:
+    await client.post("/api/v1/auth/register", json=_register_payload())
+    login = await client.post("/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    changed = await client.patch(
+        "/api/v1/auth/password",
+        headers=headers,
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+    )
+
+    assert changed.status_code == 204
+    assert changed.content == b""  # the hash is never returned
+    login_new = await client.post(
+        "/api/v1/auth/login", json={"email": EMAIL, "password": NEW_PASSWORD}
+    )
+    assert login_new.status_code == 200
+    login_old = await client.post("/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD})
+    assert login_old.status_code == 401
+
+
+async def test_change_password_wrong_current_password_401(
+    auth_client: httpx.AsyncClient,
+) -> None:
+    response = await auth_client.patch(
+        "/api/v1/auth/password",
+        json={"current_password": "wrong-password", "new_password": NEW_PASSWORD},
+    )
+
+    assert response.status_code == 401
+
+
+async def test_change_password_short_new_password_422(
+    auth_client: httpx.AsyncClient,
+) -> None:
+    response = await auth_client.patch(
+        "/api/v1/auth/password",
+        json={"current_password": "wrong-password", "new_password": "short"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_change_password_revokes_refresh_tokens(client: httpx.AsyncClient) -> None:
+    await client.post("/api/v1/auth/register", json=_register_payload())
+    login = await client.post("/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD})
+    refresh_token = login.json()["refresh_token"]
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    changed = await client.patch(
+        "/api/v1/auth/password",
+        headers=headers,
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
+    )
+    assert changed.status_code == 204
+
+    reuse = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert reuse.status_code == 401

@@ -36,3 +36,27 @@ class AuthorizationError(AppError):
     def __init__(self, detail: str = "Insufficient permissions") -> None:
         self.detail = detail
         super().__init__(detail)
+
+
+class RateLimitError(AppError):
+    """Raised when a client exceeds an endpoint's rate limit (429)."""
+
+    def __init__(
+        self, detail: str = "Rate limit exceeded", *, retry_after_seconds: float = 0.0
+    ) -> None:
+        self.detail = detail
+        self.retry_after_seconds = retry_after_seconds
+        super().__init__(detail)
+
+
+class SimulationError(AppError):
+    """Raised when the simulator control layer cannot run an operation.
+
+    Maps to 502 in the API: a running simulator is an upstream process the
+    platform drives, so a failure to start/stop one is a service-level
+    failure, not a client error.
+    """
+
+    def __init__(self, detail: str = "Simulation operation failed") -> None:
+        self.detail = detail
+        super().__init__(detail)

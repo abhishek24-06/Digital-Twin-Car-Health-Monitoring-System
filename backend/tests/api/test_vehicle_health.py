@@ -25,11 +25,18 @@ def _payload_at(seconds_ago: float) -> dict:
     return {"timestamp": ts, **HEALTHY_PAYLOAD}
 
 
+# The analysis window is 60 seconds wide and is anchored at *analysis* time,
+# while these timestamps are taken during ingestion. Each POST therefore burns
+# into the window budget, so the spread must stay well clear of 60s or the
+# oldest samples silently fall out of the window and `sample_count` drops.
+SPREAD_STEP_SECONDS = 0.1
+
+
 async def _ingest(auth_client: httpx.AsyncClient, vehicle_id: str, count: int = 40) -> None:
     for index in range(count):
         response = await auth_client.post(
             f"/api/v1/vehicles/{vehicle_id}/telemetry",
-            json=_payload_at(count - index),
+            json=_payload_at((count - index) * SPREAD_STEP_SECONDS),
         )
         assert response.status_code == 201, response.text
 
@@ -47,13 +54,16 @@ async def test_analyze_creates_healthy_context(
 
     payload = response.json()
     assert payload["vehicle_id"] == vehicle_id
-    assert payload["context_schema_version"] == "1.0"
+    assert payload["context_schema_version"] == "1.1"
     assert payload["rule_engine_version"] == "1.0"
     assert payload["health_status"] == "healthy"
     assert payload["health_score"] == 100.0
     assert payload["data_quality"]["sample_count"] == 40
     assert "coolant_temperature" in payload["statistics"]
     assert isinstance(payload["confidence"], float)
+    assert payload["data_sufficiency"] == "sufficient_data"
+    assert payload["provisional"] is False
+    assert payload["provisional_rating"] is None
 
 
 async def test_get_latest_returns_most_recent_analysis(
@@ -156,7 +166,7 @@ async def test_analyze_invalid_window_minutes_is_422(
     assert response.status_code == 422
 
 
-async def test_analyze_with_no_telemetry_is_unknown(
+async def test_analyze_with_no_telemetry_is_no_data(
     auth_client: httpx.AsyncClient, sample_vehicle: dict
 ) -> None:
     response = await auth_client.post(
@@ -164,8 +174,10 @@ async def test_analyze_with_no_telemetry_is_unknown(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["health_status"] == "unknown"
+    assert payload["health_status"] == "no_data"
     assert payload["health_score"] is None
+    assert payload["data_sufficiency"] == "no_data"
+    assert payload["provisional"] is False
     assert any(f["rule_id"] == "INSUFFICIENT_DATA" for f in payload["findings"])
 
 
@@ -174,7 +186,7 @@ async def test_high_temperature_context_reflected_in_findings(
 ) -> None:
     vehicle_id = sample_vehicle["id"]
     for index in range(40):
-        payload = _payload_at(40 - index)
+        payload = _payload_at((40 - index) * SPREAD_STEP_SECONDS)
         payload["coolant_temperature"] = 115.0
         response = await auth_client.post(f"/api/v1/vehicles/{vehicle_id}/telemetry", json=payload)
         assert response.status_code == 201, response.text

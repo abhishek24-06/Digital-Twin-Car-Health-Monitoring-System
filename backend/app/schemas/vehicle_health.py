@@ -41,6 +41,9 @@ class HealthContextResponse(BaseModel):
     health_status: str
     confidence: float | None = None
     score_details: ScoreDetails
+    data_sufficiency: str = "sufficient_data"
+    provisional: bool = False
+    provisional_rating: str | None = None
 
     @classmethod
     def from_context(cls, context: HealthContext) -> HealthContextResponse:

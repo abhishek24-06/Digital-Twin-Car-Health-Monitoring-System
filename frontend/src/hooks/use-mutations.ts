@@ -1,8 +1,14 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { simulationsApi } from "@/services/simulations";
 import { agentApi, healthApi, telemetryApi, vehiclesApi } from "@/services/vehicles";
 import { queryKeys } from "@/lib/query-keys";
+import type {
+  PaginatedResponse,
+  SimulationStartRequest,
+  SimulationStatusResponse,
+} from "@/types/api";
 
 /**
  * Mutations and their invalidation graph.
@@ -87,6 +93,64 @@ export function useCreateTelemetry(vehicleId: string) {
       void queryClient.invalidateQueries({
         queryKey: ["telemetry-window", vehicleId],
       });
+    },
+  });
+}
+
+/**
+ * One optimistic patch of the in-memory simulations list so the polled page
+ * shows the mutation's result immediately, before the 5s refetch lands.
+ */
+function patchSimulation(
+  queryClient: ReturnType<typeof useQueryClient>,
+  status: SimulationStatusResponse | undefined,
+) {
+  if (!status) return;
+  queryClient.setQueryData<PaginatedResponse<SimulationStatusResponse>>(
+    queryKeys.simulations,
+    (previous) => {
+      if (!previous) return previous;
+      return {
+        ...previous,
+        items: previous.items.map((item) =>
+          item.vehicle_id === status.vehicle_id ? status : item,
+        ),
+      };
+    },
+  );
+}
+
+export function useStartSimulation(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SimulationStartRequest) =>
+      simulationsApi.start(vehicleId, payload),
+    onSuccess: (status) => {
+      patchSimulation(queryClient, status);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.simulations });
+    },
+  });
+}
+
+export function useRestartSimulation(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SimulationStartRequest) =>
+      simulationsApi.restart(vehicleId, payload),
+    onSuccess: (status) => {
+      patchSimulation(queryClient, status);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.simulations });
+    },
+  });
+}
+
+export function useStopSimulation(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => simulationsApi.stop(vehicleId),
+    onSuccess: (status) => {
+      patchSimulation(queryClient, status);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.simulations });
     },
   });
 }

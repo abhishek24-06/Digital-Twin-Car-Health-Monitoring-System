@@ -37,6 +37,18 @@ os.environ.setdefault("JWT_SECRET", "test-secret-for-digital-twin-tests-01234567
 # attempts real BGE-M3 retrieval (which downloads weights). Phase 5 RAG tests
 # opt back in by injecting RAGService(..., enabled=True) with stub adapters.
 os.environ.setdefault("RAG_ENABLED", "false")
+# The background health monitor must never start during tests: suites assert on
+# exactly the snapshots they create, and an autonomous evaluator would race them.
+os.environ.setdefault("HEALTH_MONITOR_ENABLED", "false")
+# Rate limiting is a no-op in the suite, otherwise the many registration/login
+# cycles that auth fixtures perform would trip the 429 limiter.
+os.environ.setdefault("AUTH_RATE_LIMIT_ENABLED", "false")
+# Phase 4 devtooling: pin the access-token lifetime so config-default tests
+# (test_security_settings, test_auth) are deterministic even when a developer's
+# .env sets a non-default value (e.g. 100 for manual session testing). This is
+# the settings default (20); it is overridden per-test where the suite needs a
+# different value. A forced assignment deliberately beats the ambient .env.
+os.environ["AUTH_ACCESS_TOKEN_MINUTES"] = "20"
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.database import (  # noqa: E402

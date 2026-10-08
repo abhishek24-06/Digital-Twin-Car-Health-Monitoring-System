@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.config import AgentSettings, get_agent_settings
 from app.agent.errors import GraphExecutionError
-from app.agent.graph import build_agent_graph
+from app.agent.graph import AgentGraphContext, get_cached_agent_graph
 from app.agent.grounding import critical_rule_ids
 from app.agent.llm_service import LLMService
 from app.agent.schemas import DiagnosisResponse
@@ -184,18 +184,47 @@ class AgentService:
             "execution_metadata": {"rule_ids": rule_ids or []},
             "user_id": user_id,
         }
-        graph = build_agent_graph(
+        graph = get_cached_agent_graph(
+            self._graph_cache_key(),
             tool=self._tool,
             llm_service=self._llm_service,
             repository=self._diagnosis_repository,
             session=self._session,
             rag_tool=self._rag_tool,
         )
-        result = await graph.ainvoke(state)
+        context = AgentGraphContext(
+            tool=self._tool,
+            rag_tool=self._rag_tool,
+            llm_service=self._llm_service,
+            repository=self._diagnosis_repository,
+            session=self._session,
+        )
+        result = await graph.ainvoke(state, context=context)
         final = result.get("final_response")
         if final is None:
             raise GraphExecutionError("Agent workflow produced no response")
         return DiagnosisResponse.model_validate(final)
+
+    def _graph_cache_key(self) -> tuple[Any, ...]:
+        """Configuration identity for the compiled graph cache.
+
+        Requests whose provider/tool configuration matches reuse one compiled
+        graph; any change here selects a fresh graph under a new key. Request-
+        scoped objects (tool/session/repository instances) are deliberately
+        excluded: they flow through the per-run runtime context instead.
+        """
+        settings = self._settings
+        return (
+            settings.llm_primary_provider,
+            settings.llm_fallback_provider,
+            settings.llm_max_retries,
+            settings.llm_temperature,
+            settings.llm_max_tokens,
+            settings.llm_context_max_chars,
+            settings.llm_request_timeout_seconds,
+            type(self._tool).__name__,
+            self._rag_tool is not None,
+        )
 
     async def _resolve_rule_ids(self, vehicle_id: UUID, rule_ids: list[str] | None) -> list[str]:
         if rule_ids:

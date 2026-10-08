@@ -183,6 +183,20 @@ const HEALTH_STATUS: Record<HealthStatus, StatusSemantics> = {
     border: "border-[color:color-mix(in_oklab,var(--color-unknown)_42%,transparent)]",
     color: "var(--color-unknown)",
   },
+  no_data: {
+    label: "No data",
+    text: "text-[color:var(--color-unknown)]",
+    surface: "bg-[color:color-mix(in_oklab,var(--color-unknown)_16%,transparent)]",
+    border: "border-[color:color-mix(in_oklab,var(--color-unknown)_42%,transparent)]",
+    color: "var(--color-unknown)",
+  },
+  limited_data: {
+    label: "Limited data",
+    text: "text-[color:var(--color-info)]",
+    surface: "bg-[color:color-mix(in_oklab,var(--color-info)_16%,transparent)]",
+    border: "border-[color:color-mix(in_oklab,var(--color-info)_42%,transparent)]",
+    color: "var(--color-info)",
+  },
 };
 
 export function healthStatus(status: HealthStatus | null | undefined): StatusSemantics {

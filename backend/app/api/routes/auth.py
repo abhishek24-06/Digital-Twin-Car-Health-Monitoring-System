@@ -7,10 +7,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Response, status
 
 from app.core.exceptions import AuthenticationError
+from app.core.rate_limit import RateLimitDependency
 from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_auth_service
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -21,6 +23,11 @@ from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
 
 router = APIRouter()
+
+# One limiter per credential endpoint: hammering login must not starve refresh.
+_login_rate_limit = RateLimitDependency("auth:login")
+_register_rate_limit = RateLimitDependency("auth:register")
+_refresh_rate_limit = RateLimitDependency("auth:refresh")
 
 
 def _token_payload(access: str, refresh: str, expires_in: int, user: User) -> dict:
@@ -42,6 +49,7 @@ def _token_payload(access: str, refresh: str, expires_in: int, user: User) -> di
 async def register(
     body: RegisterRequest,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    _rate_limit: Annotated[None, Depends(_register_rate_limit)],
 ) -> dict:
     """Register a new account. The caller never supplies a role."""
     user = await auth.register(
@@ -60,6 +68,7 @@ async def register(
 async def login(
     body: LoginRequest,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    _rate_limit: Annotated[None, Depends(_login_rate_limit)],
 ) -> dict:
     """Login. A 401 is returned for a bad email, a bad password, and an
     inactive account alike, so the existence of an email can never be probed."""
@@ -78,6 +87,7 @@ async def login(
 async def refresh(
     body: RefreshRequest,
     auth: Annotated[AuthService, Depends(get_auth_service)],
+    _rate_limit: Annotated[None, Depends(_refresh_rate_limit)],
 ) -> dict:
     """Each refresh rotates the token; the previous one is revoked."""
     access, refresh, expires_in, user = await auth.rotate(body.refresh_token)
@@ -106,3 +116,21 @@ async def logout(
 )
 async def me(user: Annotated[User, Depends(get_current_user)]) -> User:
     return user
+
+
+@router.patch(
+    "/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Change the authenticated user's password",
+)
+async def change_password(
+    body: ChangePasswordRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    auth: Annotated[AuthService, Depends(get_auth_service)],
+) -> Response:
+    """Verify the current password, persist a freshly hashed password, and
+    revoke every refresh token held by the account so other devices sign out."""
+    await auth.change_password(
+        user.id, current_password=body.current_password, new_password=body.new_password
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

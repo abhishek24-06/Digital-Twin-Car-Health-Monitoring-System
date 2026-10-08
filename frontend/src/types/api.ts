@@ -150,6 +150,19 @@ export interface TelemetryResponse {
   created_at: IsoDateTime;
 }
 
+/**
+ * One SSE frame pushed on `GET /vehicles/{id}/telemetry/stream`.
+ *
+ * `server_time` is the backend's wall clock when the frame was produced; it is
+ * coarse (the stream poll interval) and feeds the "live" indicator rather than
+ * the telemetry data itself.
+ */
+export interface TelemetryStreamPayload {
+  timestamp: IsoDateTime;
+  server_time: IsoDateTime;
+  events: TelemetryResponse[];
+}
+
 export interface TelemetryCreate {
   timestamp: IsoDateTime;
   rpm?: number | null;
@@ -170,7 +183,15 @@ export interface TelemetryCreate {
 /* Vehicle health context (Phase 3 deterministic engine)             */
 /* ---------------------------------------------------------------- */
 
-export type HealthStatus = "healthy" | "attention" | "critical" | "unknown";
+export type HealthStatus =
+  | "healthy"
+  | "attention"
+  | "critical"
+  | "unknown"
+  | "no_data"
+  | "limited_data";
+
+export type DataSufficiency = "no_data" | "limited_data" | "sufficient_data";
 export type Severity = "info" | "warning" | "critical";
 export type TrendDirection =
   | "increasing"
@@ -289,6 +310,9 @@ export interface HealthContextResponse {
   health_status: HealthStatus;
   confidence: number | null;
   score_details: ScoreDetails;
+  data_sufficiency: DataSufficiency;
+  provisional: boolean;
+  provisional_rating: HealthStatus | null;
 }
 
 export interface HealthSnapshotItem {
@@ -588,6 +612,52 @@ export interface AdminRagUploadForm {
   document_type?: string;
   year_end?: number;
   language?: string;
+}
+
+/* ---------------------------------------------------------------- */
+/* Simulation control                                                */
+/* ---------------------------------------------------------------- */
+
+/** Scenario identifiers the simulator's telemetry generator understands. */
+export type SimulationScenario =
+  | "normal"
+  | "high_temperature"
+  | "low_battery"
+  | "high_engine_load";
+
+export type SimulationState =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "degraded"
+  | "error";
+
+export interface SimulationStartRequest {
+  scenario: SimulationScenario;
+  /** Publish cadence in seconds (backend clamps to 0 < interval <= 60). */
+  interval_seconds?: number;
+  /** Optional randomness seed; the backend defaults to 42. */
+  seed?: number;
+}
+
+/**
+ * Simulator state for one vehicle. Process details (PID, environment,
+ * command line) are intentionally never exposed across the API. The backend
+ * reports `degraded` (with a reason in `error`) whenever the process is alive
+ * but telemetry is not reaching the database -- e.g. the backend subscriber is
+ * offline or the feed has gone stale.
+ */
+export interface SimulationStatusResponse {
+  vehicle_id: UUID;
+  status: SimulationState;
+  scenario: SimulationScenario | null;
+  interval_seconds: number | null;
+  seed: number | null;
+  started_at: IsoDateTime | null;
+  error: string | null;
+  /** Newest telemetry row for the vehicle. */
+  last_telemetry_at: IsoDateTime | null;
 }
 
 /* ---------------------------------------------------------------- */

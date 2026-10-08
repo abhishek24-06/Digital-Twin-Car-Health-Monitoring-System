@@ -17,7 +17,32 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # pgvector must exist before `Vector(1024)` is used below. There are two
+    # distinct ways this fails, and both surface here as opaque server errors
+    # unless they are translated:
+    #   undefined_file        - the server was built without pgvector (e.g. a
+    #                           stock postgres:16-alpine image)
+    #   insufficient_privilege - the role may not CREATE EXTENSION
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            CREATE EXTENSION IF NOT EXISTS vector;
+        EXCEPTION WHEN undefined_file THEN
+            RAISE EXCEPTION
+                'pgvector is not installed in this PostgreSQL server. Use a '
+                'pgvector-enabled image (pgvector/pgvector:pg16) instead of '
+                'a stock postgres image.';
+        EXCEPTION WHEN insufficient_privilege THEN
+            RAISE EXCEPTION
+                'pgvector is installed but the role % cannot create it. Run '
+                'migrations as superuser, or GRANT this role membership in '
+                'the extension owner role.',
+                current_user;
+        END
+        $$;
+        """
+    )
 
     op.create_table(
         "rag_documents",

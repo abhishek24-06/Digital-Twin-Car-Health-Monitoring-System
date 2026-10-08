@@ -25,7 +25,11 @@ from app.intelligence.models import (
     HealthContext,
     TelemetryPoint,
 )
-from app.intelligence.rules import INSUFFICIENT_DATA_RULE, HealthRuleEngine
+from app.intelligence.rules import (
+    INSUFFICIENT_DATA_RULE,
+    LIMITED_DATA_RULE,
+    HealthRuleEngine,
+)
 from app.intelligence.scoring import compute_confidence, insufficient_score, score_findings
 from app.intelligence.statistics import analyze_metrics
 from app.intelligence.trends import analyze_trends
@@ -108,26 +112,60 @@ class HealthAnalysisEngine:
         statistics = analyze_metrics(samples, SUPPORTED_METRICS)
         trends = analyze_trends(samples, SUPPORTED_METRICS)
 
-        insufficient = data_quality.sample_count < minimum_samples
-        if insufficient:
+        sample_count = data_quality.sample_count
+        cutover_note = f"sample_count ({sample_count}) is below minimum_samples ({minimum_samples})"
+        if sample_count == 0:
+            # Phase 10: no telemetry at all → NO_DATA. There is nothing to score,
+            # so the assessment cannot exist yet (contrast with LIMITED_DATA).
             findings = [
                 Finding(
                     rule_id=INSUFFICIENT_DATA_RULE,
                     severity="info",
                     category="data_quality",
                     metric=None,
-                    message="Insufficient telemetry data for a reliable health assessment.",
+                    message="No telemetry samples in the analysis window; no health assessment is possible.",
                     confidence=0.5,
                     window_start=window.start,
                     window_end=window.end,
                 )
             ]
-            score_details = insufficient_score(
-                notes=[
-                    f"sample_count ({data_quality.sample_count}) is below minimum_samples ({minimum_samples})"
-                ]
+            score_details = insufficient_score(notes=[cutover_note])
+            confidence = None
+            data_sufficiency = "no_data"
+            provisional = False
+            provisional_rating = None
+        elif sample_count < minimum_samples:
+            # Phase 10: LIMITED_DATA. Evaluate the rules on whatever telemetry
+            # exists so the first sample already yields a provisional rating,
+            # but keep the definitive status honest (limited data, low
+            # confidence) instead of presenting it as a firm verdict.
+            findings = self._rule_engine.evaluate(
+                statistics=statistics,
+                data_quality=data_quality,
+                window=window,
+                expected_interval_seconds=expected_interval_seconds,
             )
+            findings.append(
+                Finding(
+                    rule_id=LIMITED_DATA_RULE,
+                    severity="info",
+                    category="data_quality",
+                    metric=None,
+                    message=(
+                        "Limited telemetry: this is a provisional assessment with low "
+                        "confidence, not a definitive verdict."
+                    ),
+                    confidence=0.5,
+                    window_start=window.start,
+                    window_end=window.end,
+                )
+            )
+            findings.sort(key=lambda f: (f.rule_id, f.severity))
+            score_details = score_findings(findings)
             confidence = compute_confidence(data_quality, statistics, window)
+            data_sufficiency = "limited_data"
+            provisional = True
+            provisional_rating = score_details.status
         else:
             findings = self._rule_engine.evaluate(
                 statistics=statistics,
@@ -137,9 +175,12 @@ class HealthAnalysisEngine:
             )
             score_details = score_findings(findings)
             confidence = compute_confidence(data_quality, statistics, window)
+            data_sufficiency = "sufficient_data"
+            provisional = False
+            provisional_rating = None
 
         baselines = []
-        if history and not insufficient and len(history) >= baseline_minimum:
+        if history and sample_count > 0 and len(history) >= baseline_minimum:
             baselines = analyze_baselines(history, samples, SUPPORTED_METRICS)
 
         duration_ms = round((time.perf_counter() - started) * 1000.0, 3)
@@ -155,14 +196,20 @@ class HealthAnalysisEngine:
             findings=findings,
             score_details=score_details,
             confidence=confidence,
+            data_sufficiency=data_sufficiency,
+            provisional=provisional,
+            provisional_rating=provisional_rating,
         )
         logger.info(
-            "health analysis: vehicle_id=%s samples=%s score=%s status=%s findings=%s "
-            "coverage=%s duration_ms=%s",
+            "health analysis: vehicle_id=%s samples=%s sufficiency=%s provisional=%s "
+            "rating=%s status=%s score=%s findings=%s coverage=%s duration_ms=%s",
             vehicle_id,
             data_quality.sample_count,
-            score_details.score,
+            data_sufficiency,
+            provisional,
+            provisional_rating,
             score_details.status,
+            score_details.score,
             len(findings),
             data_quality.coverage_ratio,
             duration_ms,

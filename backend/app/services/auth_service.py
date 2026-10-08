@@ -145,6 +145,23 @@ class AuthService:
             await self._tokens.revoke(stored)
             await self._session.commit()
 
+    async def change_password(
+        self, user_id: UUID, *, current_password: str, new_password: str
+    ) -> None:
+        """Verify the current password, store a new hash, and revoke all sessions.
+
+        A wrong current password raises the same 401 as a failed login. Every
+        refresh token for the account is revoked so that other sessions are
+        signed out immediately; the caller's own access token remains valid
+        until it naturally expires.
+        """
+        user = await self._users.get_by_id(user_id)
+        if user is None or not verify_password(current_password, user.password_hash):
+            raise AuthenticationError("Current password is incorrect")
+        user.password_hash = hash_password(new_password)
+        await self._tokens.revoke_all_for_user(user.id)
+        await self._session.commit()
+
     def _create_access_token(self, user: User) -> str:
         return create_access_token(user_id=user.id, settings=self._settings)
 

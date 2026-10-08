@@ -20,7 +20,7 @@ export const API_BASE_URL =
   "http://localhost:8000/api/v1";
 
 /** Routes that manage the session; handled server-side, never bearer-authed. */
-const SESSION_ROUTES = ["/api/session", "/api/session/login", "/api/session/register", "/api/session/logout"];
+const SESSION_ROUTES = ["/api/session", "/api/session/login", "/api/session/register"];
 
 export type QueryValue = string | number | boolean | null | undefined;
 

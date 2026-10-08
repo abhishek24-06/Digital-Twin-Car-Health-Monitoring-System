@@ -18,6 +18,7 @@ from app.intelligence.models import (
 )
 
 INSUFFICIENT_DATA_RULE = "INSUFFICIENT_DATA"
+LIMITED_DATA_RULE = "LIMITED_DATA"
 
 
 @dataclass(frozen=True)

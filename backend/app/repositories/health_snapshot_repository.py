@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.health_snapshot import HealthSnapshot
+from app.models.telemetry import TelemetryRecord
 
 
 class HealthSnapshotRepository:
@@ -62,3 +63,62 @@ class HealthSnapshotRepository:
         )
         result = await self._session.scalars(statement)
         return list(result.all()), int(total or 0)
+
+    async def list_vehicle_ids_with_newer_telemetry(
+        self, *, older_than: datetime | None = None, limit: int | None = None
+    ) -> list[UUID]:
+        """Vehicles whose newest telemetry is newer than their newest snapshot.
+
+        This is the work queue for background health evaluation: a vehicle is
+        *due* when telemetry has arrived since the last time it was evaluated,
+        or when it has telemetry but has never been evaluated at all. Vehicles
+        with no telemetry are never due.
+
+        ``older_than`` additionally suppresses vehicles whose latest snapshot is
+        newer than the given instant, which is the per-vehicle throttle between
+        evaluations. A vehicle that has never been evaluated has no snapshot and
+        is therefore never suppressed.
+        """
+        last_telemetry = (
+            select(
+                TelemetryRecord.vehicle_id.label("vehicle_id"),
+                func.max(TelemetryRecord.timestamp).label("last_telemetry_at"),
+            )
+            .group_by(TelemetryRecord.vehicle_id)
+            .subquery()
+        )
+        last_snapshot = (
+            select(
+                HealthSnapshot.vehicle_id.label("vehicle_id"),
+                func.max(HealthSnapshot.generated_at).label("last_snapshot_at"),
+            )
+            .group_by(HealthSnapshot.vehicle_id)
+            .subquery()
+        )
+
+        due = or_(
+            last_snapshot.c.last_snapshot_at.is_(None),
+            last_telemetry.c.last_telemetry_at > last_snapshot.c.last_snapshot_at,
+        )
+        if older_than is not None:
+            throttle = or_(
+                last_snapshot.c.last_snapshot_at.is_(None),
+                last_snapshot.c.last_snapshot_at < older_than,
+            )
+            due = and_(due, throttle)
+
+        statement = (
+            select(last_telemetry.c.vehicle_id)
+            .join(
+                last_snapshot,
+                last_snapshot.c.vehicle_id == last_telemetry.c.vehicle_id,
+                isouter=True,
+            )
+            .where(due)
+            .order_by(last_telemetry.c.vehicle_id)
+        )
+        if limit is not None:
+            statement = statement.limit(limit)
+
+        result = await self._session.scalars(statement)
+        return list(result.all())

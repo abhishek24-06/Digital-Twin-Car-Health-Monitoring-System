@@ -24,6 +24,12 @@ dependencies = [
     "bcrypt>=4.0.0",
     "PyJWT>=2.8.0",
     "python-multipart>=0.0.9",
+    # Required at import time: app/models/rag.py builds the rag_chunks
+    # embedding column (make_embedding_column(1024)) while the ORM class is
+    # being defined, and app/rag/embeddings.py imports numpy at module scope.
+    # Without these two, `import app.main` fails before Uvicorn can bind.
+    "pgvector>=0.3.6",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +38,17 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "httpx>=0.27.0",
     "ruff>=0.7.0",
+]
+# Document ingestion, embedding and reranking. All of these are imported
+# lazily (first upload / first encode / first rerank), so the application
+# starts without them -- but /rag/search and /admin/rag/documents will fail at
+# call time. Install with `pip install -e ".[rag]"`.
+rag = [
+    "docling>=2.0.0",
+    "sentence-transformers>=3.0.0",
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+    "scipy>=1.11.0",
 ]
 
 [tool.setuptools.packages.find]

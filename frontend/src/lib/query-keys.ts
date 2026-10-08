@@ -6,6 +6,8 @@ export const queryKeys = {
   vehicles: ["vehicles"] as const,
   vehicle: (vehicleId: string) => ["vehicles", vehicleId] as const,
 
+  simulations: ["simulations"] as const,
+
   telemetry: (vehicleId: string, rangeKey: string, page: number) =>
     ["telemetry", vehicleId, rangeKey, page] as const,
   telemetryWindow: (vehicleId: string, rangeKey: string) =>

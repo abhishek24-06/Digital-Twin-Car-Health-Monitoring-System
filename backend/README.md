@@ -21,9 +21,12 @@ endpoints.
 ## 1. Project overview
 
 Vehicles emit OBD-II telemetry collected over MQTT and exposed through a REST
-API. A later context engine and LLM reasoning layer will consume the stored
-telemetry to produce diagnoses and recommendations; the layers implemented so
-far provide the durable, ingestion-agnostic foundation for that.
+API. A deterministic Vehicle Health Context engine turns that telemetry into an
+explainable health score, a LangGraph agent grounds natural-language queries and
+critical events in the vehicle and health context (optionally augmented by
+manufacturer-document RAG), and every diagnosis is persisted for audit. Identity
+rounds it out: JWT access tokens with rotating, hashed, revocable refresh tokens,
+`user`/`admin` roles, and per-user vehicle ownership enforced end-to-end.
 
 Phase 2 delivers the long-lived ingestion path:
 
@@ -434,6 +437,12 @@ $env:SIMULATOR_INTERVAL_SECONDS="0.5"
 python -m simulator.main
 ```
 
+> **Windows convenience:** `..\scripts\dt-start.ps1` / `dt-stop.ps1` /
+> `dt-status.ps1` launch and track the same broker + API + subscriber as hidden
+> background processes (state under `%TEMP%\dtwin`). They are infrastructure
+> management only — per-vehicle simulators are owned by Simulation Control
+> (see §18) and are started/stopped through the API, not these scripts.
+
 ## 9. Docker development (full Phase 2 stack)
 
 ```bash
@@ -755,6 +764,11 @@ The suite:
 - **subscriber (mocked MQTT)**: valid → persisted; duplicate → skipped;
   invalid JSON / envelope/topic mismatch / unknown vehicle → skipped without
   raising
+- **simulation control**: `tests/services/test_simulation_manager.py`
+  (lifecycle, grace escalation, stale-marker cleanup — all on a fake process
+  runner) and `tests/api/test_simulation.py` (start/status/stop/restart +
+  summary list, authz, 409/502, no PID/env leak); plus an `mqtt_e2e` test that
+  supervises a real OOM subprocess and asserts rows land in PostgreSQL
 - **e2e (`mqtt_e2e`)**: publishes a real envelope to a real broker and asserts
   the record lands in PostgreSQL; skips gracefully when no broker is reachable
 
@@ -784,6 +798,7 @@ Interactive docs are served by FastAPI:
 | POST   | `/api/v1/auth/refresh`                | Rotate a refresh token (one-time)  |
 | POST   | `/api/v1/auth/logout`                 | Revoke the refresh token (204)     |
 | GET    | `/api/v1/auth/me`                     | Current user profile (401 guard)   |
+| PATCH  | `/api/v1/auth/password`               | Change my password; revokes all refresh tokens (204) |
 | GET    | `/api/v1/users/me`                    | Get my profile (Auth required)     |
 | PATCH  | `/api/v1/users/me`                    | Update `full_name` (Auth required) |
 | GET    | `/api/v1/vehicles`                    | List my vehicles (paginated)       |
@@ -793,6 +808,7 @@ Interactive docs are served by FastAPI:
 | DELETE | `/api/v1/vehicles/{id}`               | Delete vehicle — cascade telemetry (owner/admin only, 204) |
 | GET    | `/api/v1/vehicles/{id}/telemetry`     | List telemetry (owner/admin, paginated, time filter) |
 | POST   | `/api/v1/vehicles/{id}/telemetry`     | Store a telemetry sample (owner/admin, 201) |
+| GET    | `/api/v1/vehicles/{id}/telemetry/stream` | SSE stream of new telemetry (owner/admin; heartbeat while idle) |
 | POST   | `/api/v1/vehicles/{id}/health/analyze`| Analyze + persist a health snapshot (owner/admin; window_minutes 1–1440) |
 | GET    | `/api/v1/vehicles/{id}/health`        | Latest persisted health context (owner/admin) |
 | GET    | `/api/v1/vehicles/{id}/health/history`| Paginated health snapshot history (owner/admin) |
@@ -801,6 +817,11 @@ Interactive docs are served by FastAPI:
 | GET    | `/api/v1/vehicles/{id}/agent/dashboard`   | Dashboard hook — health context + latest diagnosis (owner/admin, no LLM) |
 | GET    | `/api/v1/vehicles/{id}/agent/diagnoses`   | Paginated agent diagnosis history (owner/admin) |
 | GET    | `/api/v1/vehicles/{id}/agent/diagnoses/latest` | Latest persisted diagnosis (owner/admin, 404 if none) |
+| POST   | `/api/v1/vehicles/{id}/simulation`      | Start a telemetry simulator for the vehicle (owner/admin, 201; 409 if already running) |
+| GET    | `/api/v1/vehicles/{id}/simulation`      | Current simulation status (owner/admin) |
+| DELETE | `/api/v1/vehicles/{id}/simulation`      | Stop any active simulator (idempotent, owner/admin) |
+| POST   | `/api/v1/vehicles/{id}/simulation/restart` | Stop any active simulator and start a fresh run (owner/admin; 502 if spawn fails) |
+| GET    | `/api/v1/simulations`                  | Simulation status for every accessible vehicle (admins see all) |
 | GET    | `/api/v1/rag/health`  | RAG status — adapters, pgvector, corpus counts (**admin only**, 403 otherwise) |
 | GET    | `/api/v1/rag/search`  | Scoped hybrid search (`q` required; any authenticated user) |
 | POST   | `/api/v1/admin/rag/documents` | Ingest a manufacturer document (multipart, 201; **admin only**) |
@@ -826,7 +847,11 @@ JWT_SECRET="..."  # or keep in .env (must be >= 32 chars)
 curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "Sup3rSecret!", "full_name": "Ada"}'
-# => {"access_token": ..., "refresh_token": ..., "expires_in": 1200, "user": {...}}
+# => 201 with the created user only (NOT a token pair - sign in afterwards):
+#    {"id": "...", "email": "user@example.com", "role": "user",
+#     "full_name": "Ada", "is_active": true, "created_at": "..."}
+# The caller never supplies a role; unknown fields (e.g. "role") are rejected
+# with 422, and a duplicate email returns 409.
 
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -915,7 +940,42 @@ Fault scenarios:
 Physical invariants: fuel only decreases while running, odometer only
 increases with speed, engine runtime only accumulates while not `OFF`.
 
-## 18. Error semantics
+## 18. Simulation Control (backend-supervised simulators)
+
+When a vehicle needs a steady, realistic telemetry feed on demand, the API can
+start, stop and restart **one `simulator.main` subprocess per vehicle**. The
+backend supervises these subprocesses (`app/services/simulation_manager.py`):
+spawn with sanitized config, insert a runtime marker, heartbeat/exit polling,
+graceful stop that escalates terminate → kill, and stale-marker cleanup on
+startup. They publish to the same `vehicles/{id}/telemetry` topics as the
+Phase 2 simulator, so the feed flows through the normal MQTT subscriber — the
+subscriber stays the single ingestion path.
+
+| Method | Path                                        | Description                             |
+| ------ | ------------------------------------------- | --------------------------------------- |
+| POST   | `/api/v1/vehicles/{id}/simulation`          | Start a simulator. Body: `scenario` (see table in §17), optional `interval_seconds` (clamped to 0 < n ≤ 60, default 1) and `seed` (default 42). 201 on first start; 409 if one is already running. |
+| GET    | `/api/v1/vehicles/{id}/simulation`          | Status: `stopped`/`starting`/`running`/`stopping`/`error` plus `scenario`, `interval_seconds`, `seed`, `started_at`, `error`, `last_telemetry_at`. |
+| DELETE | `/api/v1/vehicles/{id}/simulation`          | Stop any active simulator. Idempotent: a vehicle with no simulator returns 200 and stays `stopped`. |
+| POST   | `/api/v1/vehicles/{id}/simulation/restart`  | Stop any active simulator (if running) and start a fresh run with the supplied config. 200; 502 if the subprocess fails to spawn. |
+| GET    | `/api/v1/simulations`                       | Status for every vehicle the caller can access — own vehicles for a `user`, all vehicles for an `admin`. |
+
+Contract notes:
+
+- Auth/ownership behave exactly like telemetry: non-owners receive 404 and the
+  existence of another user's vehicle is never revealed.
+- The response **never** contains the PID, environment or command line.
+- `last_telemetry_at` comes from the newest `telemetry_records` row, so a
+  `running` badge can be cross-checked against a live feed: "running but stale"
+  points at the broker or subscriber, not the simulator.
+- Start is **not** gated on `Vehicle.simulation_enabled` — that field defaults
+  to `False` and is not settable through create/update, so gating on it would
+  block every user vehicle. The backend decides who may start a simulator via
+  the normal ownership checks.
+- Scenarios are exactly the simulator's fault scenarios from §17.
+- Orphaned markers left by a hard kill (e.g. `taskkill`, reboot) are cleaned up
+  by `cleanup_stale()` at app startup.
+
+## 19. Error semantics
 
 | HTTP | Meaning                       |
 | ---- | ----------------------------- |
@@ -925,7 +985,7 @@ increases with speed, engine runtime only accumulates while not `OFF`.
 | 409  | Conflict (e.g. duplicate VIN, duplicate email) |
 | 422  | Request validation failed (incl. forbidden registration/profile fields) |
 | 500  | Agent misconfiguration / graph execution failure |
-| 502  | LLM provider error (bad request, auth, provider failure, invalid structured output) |
+| 502  | LLM provider error (bad request, auth, provider failure, invalid structured output); simulator subprocess failed to launch (Simulation Control) |
 | 503  | LLM provider rate limiting    |
 | 504  | LLM provider timeout          |
 
@@ -935,7 +995,7 @@ DB errors are retried a bounded number of times (see
 `MQTT_MESSAGE_RETRY_ATTEMPTS`). LLM API keys never appear in logs or responses:
 provider exceptions are sanitized into the agent taxonomy above.
 
-## 19. Intentionally not implemented (yet)
+## 20. Intentionally not implemented (yet)
 
 - PDF reports (Phase 7), Next.js dashboard (Phase 8).
 - The Phase 3 health engine is fully deterministic: no LLM, no ML, and no
@@ -950,7 +1010,7 @@ provider exceptions are sanitized into the agent taxonomy above.
   management is exposed.
 - Anomaly analytics and any TimescaleDB-specific behaviour.
 
-## 20. Manufacturer Documentation RAG (Phase 5)
+## 21. Manufacturer Documentation RAG (Phase 5)
 
 `RAG_ENABLED` (default `true` outside tests) gates the whole feature; every
 other setting has a default and sensible bounds. Real models are only loaded
@@ -995,7 +1055,7 @@ BGE-M3/reranker weights are cached locally; the verifier pins
 `HF_HUB_OFFLINE=1` etc. The corpus on Supabase is currently empty (cleaned up
 after verification) until documents are (re-)ingested.
 
-## 21. Admin document management (Phase 6.x)
+## 22. Admin document management (Phase 6.x)
 
 The manufacturer corpus can also be managed over HTTP by an **admin** user. The
 API adds only an upload/safety layer on top of the Phase 5 pipeline — the same

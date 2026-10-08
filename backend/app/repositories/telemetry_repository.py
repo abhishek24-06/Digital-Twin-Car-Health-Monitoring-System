@@ -86,3 +86,46 @@ class TelemetryRepository:
             statement = statement.limit(limit)
         result = await self._session.scalars(statement)
         return list(result.all())
+
+    async def list_since(
+        self,
+        vehicle_id: UUID,
+        *,
+        after: datetime,
+        limit: int,
+    ) -> list[TelemetryRecord]:
+        """Return telemetry strictly newer than ``after``, oldest first.
+
+        The exclusive ``timestamp`` bound makes a value read back from a
+        previous batch a safe cursor (no record can be missed or emitted twice).
+        Honors the ``(vehicle_id, timestamp)`` index; ``limit`` bounds how much
+        a single poll may emit.
+        """
+        statement = (
+            select(TelemetryRecord)
+            .where(
+                TelemetryRecord.vehicle_id == vehicle_id,
+                TelemetryRecord.timestamp > after,
+            )
+            .order_by(TelemetryRecord.timestamp.asc(), TelemetryRecord.id.asc())
+            .limit(limit)
+        )
+        result = await self._session.scalars(statement)
+        return list(result.all())
+
+    async def get_latest_timestamps(self, vehicle_ids: list[UUID]) -> dict[UUID, datetime]:
+        """Map each vehicle id to its newest telemetry timestamp.
+
+        Vehicles with no telemetry are absent from the result so callers can
+        distinguish "no samples" from a timestamp. An empty input returns an
+        empty map without issuing a query.
+        """
+        if not vehicle_ids:
+            return {}
+        statement = (
+            select(TelemetryRecord.vehicle_id, func.max(TelemetryRecord.timestamp))
+            .where(TelemetryRecord.vehicle_id.in_(vehicle_ids))
+            .group_by(TelemetryRecord.vehicle_id)
+        )
+        rows = await self._session.execute(statement)
+        return {vehicle_id: latest for vehicle_id, latest in rows.all()}

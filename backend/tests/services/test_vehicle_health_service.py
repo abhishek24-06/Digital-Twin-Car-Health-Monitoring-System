@@ -87,8 +87,10 @@ async def test_analyze_vehicle_persists_snapshot(
     assert snapshot.vehicle_id == vehicle_id
     assert snapshot.health_status == "healthy"
     assert snapshot.health_score == 100.0
-    assert snapshot.context_schema_version == "1.0"
+    assert snapshot.context_schema_version == "1.1"
     assert snapshot.context_json["health_status"] == "healthy"
+    assert snapshot.context_json["data_sufficiency"] == "sufficient_data"
+    assert snapshot.context_json["provisional"] is False
     assert snapshot.confidence is not None and 0.5 < snapshot.confidence <= 1.0
 
     latest = await service.get_latest(vehicle_id)

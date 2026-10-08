@@ -9,7 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.health_snapshot import HealthSnapshot
+from app.models.telemetry import TelemetryRecord
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
+from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.vehicle import VehicleCreate
 from app.services.vehicle_service import VehicleService
@@ -17,7 +19,7 @@ from tests.conftest import unique_vin
 
 
 @pytest_asyncio.fixture
-async def session(session_factory: async_sessionmaker[AsyncSession]) -> AsyncSession:
+async def session(clean_db, session_factory: async_sessionmaker[AsyncSession]) -> AsyncSession:
     async with session_factory() as s:
         yield s
 
@@ -129,3 +131,117 @@ async def test_orphan_snapshot_requires_vehicle(session: AsyncSession) -> None:
     orphan = make_snapshot(uuid4(), datetime.now(UTC))
     with pytest.raises(IntegrityError):
         await repo.create(orphan)
+
+
+async def _add_telemetry(session: AsyncSession, vehicle_id: UUID, ts: datetime) -> None:
+    record = TelemetryRecord(vehicle_id=vehicle_id, timestamp=ts, rpm=1200.0, speed=40.0)
+    await TelemetryRepository(session).create(record)
+    await session.commit()
+
+
+async def test_newer_telemetry_included(session: AsyncSession, vehicle_id: UUID) -> None:
+    repo = HealthSnapshotRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await repo.create(make_snapshot(vehicle_id, base))
+    await session.commit()
+    await _add_telemetry(session, vehicle_id, base + timedelta(minutes=5))
+
+    assert await repo.list_vehicle_ids_with_newer_telemetry() == [vehicle_id]
+
+
+async def test_telemetry_without_snapshot_included(session: AsyncSession, vehicle_id: UUID) -> None:
+    await _add_telemetry(session, vehicle_id, datetime(2026, 1, 1, tzinfo=UTC))
+
+    assert await HealthSnapshotRepository(session).list_vehicle_ids_with_newer_telemetry() == [
+        vehicle_id
+    ]
+
+
+async def test_up_to_date_vehicle_excluded(session: AsyncSession, vehicle_id: UUID) -> None:
+    repo = HealthSnapshotRepository(session)
+    ts = datetime(2026, 1, 1, tzinfo=UTC)
+    await repo.create(make_snapshot(vehicle_id, ts))
+    await session.commit()
+    await _add_telemetry(session, vehicle_id, ts)
+
+    assert await repo.list_vehicle_ids_with_newer_telemetry() == []
+
+
+async def test_snapshot_newer_than_telemetry_excluded(
+    session: AsyncSession, vehicle_id: UUID
+) -> None:
+    repo = HealthSnapshotRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await _add_telemetry(session, vehicle_id, base)
+    await repo.create(make_snapshot(vehicle_id, base + timedelta(minutes=5)))
+    await session.commit()
+
+    assert await repo.list_vehicle_ids_with_newer_telemetry() == []
+
+
+async def test_vehicle_without_telemetry_excluded(session: AsyncSession, vehicle_id: UUID) -> None:
+    assert await HealthSnapshotRepository(session).list_vehicle_ids_with_newer_telemetry() == []
+
+
+async def test_limit_bounds_result(session: AsyncSession) -> None:
+    vehicle_service = VehicleService(session, VehicleRepository(session))
+    ids = [
+        (
+            await vehicle_service.create_vehicle(
+                VehicleCreate(vin=unique_vin(), make="Toyota", model="Camry", year=2024)
+            )
+        ).id
+        for _ in range(3)
+    ]
+    for vehicle_id in ids:
+        await _add_telemetry(session, vehicle_id, datetime(2026, 1, 1, tzinfo=UTC))
+    await session.commit()
+
+    found = await HealthSnapshotRepository(session).list_vehicle_ids_with_newer_telemetry(limit=2)
+    assert len(found) == 2
+    assert set(found) <= set(ids)
+
+
+async def test_throttle_suppresses_recently_evaluated(
+    session: AsyncSession, vehicle_id: UUID
+) -> None:
+    repo = HealthSnapshotRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await repo.create(make_snapshot(vehicle_id, base))
+    await session.commit()
+    await _add_telemetry(session, vehicle_id, base + timedelta(minutes=5))
+
+    # Cutoff precedes the snapshot, so that snapshot is too recent to re-run.
+    assert (
+        await repo.list_vehicle_ids_with_newer_telemetry(older_than=base - timedelta(seconds=1))
+        == []
+    )
+
+    # Cutoff falls after the snapshot -> eligible again.
+    assert await repo.list_vehicle_ids_with_newer_telemetry(
+        older_than=base + timedelta(minutes=10)
+    ) == [vehicle_id]
+
+
+async def test_throttle_never_suppresses_never_evaluated(
+    session: AsyncSession, vehicle_id: UUID
+) -> None:
+    repo = HealthSnapshotRepository(session)
+    ts = datetime(2026, 1, 1, tzinfo=UTC)
+    await _add_telemetry(session, vehicle_id, ts)
+    await session.commit()
+
+    # No snapshot at all, so there is nothing to throttle against.
+    assert await repo.list_vehicle_ids_with_newer_telemetry(older_than=ts + timedelta(hours=1)) == [
+        vehicle_id
+    ]
+
+
+async def test_throttle_is_ignored_when_no_cutoff(session: AsyncSession, vehicle_id: UUID) -> None:
+    repo = HealthSnapshotRepository(session)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await repo.create(make_snapshot(vehicle_id, base))
+    await session.commit()
+    await _add_telemetry(session, vehicle_id, base + timedelta(minutes=5))
+
+    assert await repo.list_vehicle_ids_with_newer_telemetry() == [vehicle_id]

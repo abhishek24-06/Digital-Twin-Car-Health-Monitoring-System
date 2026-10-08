@@ -1,6 +1,10 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector-enabled PostgreSQL. Migration 4f9d3c2b1a8e creates the `vector`
+    # extension and the HNSW cosine index, which stock postgres:16-alpine cannot
+    # satisfy. Keep this image in sync with the pgvector version the backend
+    # declares in pyproject.toml.
+    image: pgvector/pgvector:pg16
     container_name: digital-twin-postgres
     environment:
       # Development-only credentials. Override in production.

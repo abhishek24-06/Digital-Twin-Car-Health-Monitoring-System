@@ -37,6 +37,7 @@ from app.dependencies.auth import require_admin
 from app.dependencies.database import get_admin_rag_service
 from app.models.user import User
 from app.rag.admin_documents import AdminRagDocumentService
+from app.rag.parser import supported_extensions
 from app.rag.schemas import RAGDocumentSummary
 from app.schemas.common import PaginatedResponse
 from app.schemas.rag import (
@@ -66,10 +67,8 @@ UPLOAD_FORM_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-_SUPPORTED_FILES_HELP = (
-    "Supported document formats follow the parser registry: "
-    ".pdf .docx .doc .rtf .pptx .ppt .html .mhtml .xlsx .xls "
-    ".txt .md .text"
+_SUPPORTED_FILES_HELP = "Supported document formats follow the parser registry: " + " ".join(
+    sorted(supported_extensions())
 )
 
 

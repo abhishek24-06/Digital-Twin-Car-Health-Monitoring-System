@@ -15,6 +15,7 @@
  */
 
 import { cookies } from "next/headers";
+import type { TokenResponse } from "@/types/api";
 
 export const ACCESS_COOKIE = "dt_at";
 export const REFRESH_COOKIE = "dt_rt";
@@ -98,6 +99,24 @@ export async function readRefreshToken(): Promise<string | null> {
   return store.get(REFRESH_COOKIE)?.value ?? null;
 }
 
+/**
+ * Rotate the refresh token and persist the new pair. Returns the fresh access
+ * token, or `null` when there is no refresh cookie or the backend rejects it
+ * (callers are expected to clear the session then).
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = await readRefreshToken();
+  if (!refreshToken) return null;
+  const refreshed = await backendFetch<TokenResponse>("/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!refreshed.ok || !refreshed.body?.access_token) return null;
+  await writeSessionCookies(refreshed.body.access_token, refreshed.body.refresh_token);
+  return refreshed.body.access_token;
+}
+
 export async function writeSessionCookies(accessToken: string, refreshToken: string): Promise<void> {
   const store = await cookies();
   store.set(ACCESS_COOKIE, accessToken, {
@@ -118,6 +137,21 @@ export async function writeSessionCookies(accessToken: string, refreshToken: str
 
 export async function clearSessionCookies(): Promise<void> {
   const store = await cookies();
-  store.delete(ACCESS_COOKIE);
-  store.delete(REFRESH_COOKIE);
+  // Expire each cookie with the same path/attributes it was set with: a cookie
+  // set on a scoped path is only matched by name+path, so `store.delete(name)`
+  // alone (default Path=/) would leave the refresh cookie behind.
+  store.set(ACCESS_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: ACCESS_PATH,
+    maxAge: 0,
+  });
+  store.set(REFRESH_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: REFRESH_PATH,
+    maxAge: 0,
+  });
 }

@@ -1,5 +1,7 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+import math
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -19,7 +21,12 @@ from app.agent.errors import (
 )
 from app.api.router import api_router
 from app.core.config import get_settings
-from app.core.database import check_database_connection, dispose_engine, init_engine
+from app.core.database import (
+    check_database_connection,
+    dispose_engine,
+    get_session_factory,
+    init_engine,
+)
 from app.core.exceptions import (
     AppError,
     AuthenticationError,
@@ -27,6 +34,8 @@ from app.core.exceptions import (
     ConflictError,
     DatabaseError,
     NotFoundError,
+    RateLimitError,
+    SimulationError,
 )
 from app.core.logging import configure_logging
 from app.rag.errors import (
@@ -35,6 +44,9 @@ from app.rag.errors import (
     RAGUploadTooLargeError,
     RAGUploadValidationError,
 )
+from app.services.health_monitor import HealthMonitorService, run_health_monitor_loop
+from app.services.simulation_manager import get_simulation_manager
+from app.services.subscriber_manager import get_subscriber_supervisor
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -52,10 +64,52 @@ async def lifespan(app: FastAPI):
             "GET /api/v1/health/db will report unavailable"
         )
 
+    monitor_task = _start_health_monitor()
+
+    simulation_manager = get_simulation_manager()
+    stale = await simulation_manager.cleanup_stale()
+    if stale:
+        logger.warning("Terminated %s simulator process(es) left over from a previous run", stale)
+
+    subscriber_supervisor = get_subscriber_supervisor()
+    subscriber_health = await subscriber_supervisor.ensure_running()
+    if not subscriber_health.running:
+        logger.warning("MQTT subscriber is not running; simulation statuses will report degraded")
+    else:
+        logger.info(
+            "MQTT subscriber running (retries=%s)",
+            subscriber_health.restarts,
+        )
+
     yield
+
+    await subscriber_supervisor.shutdown()
+    await simulation_manager.shutdown()
+
+    if monitor_task is not None:
+        monitor_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await monitor_task
 
     await dispose_engine()
     logger.info("%s stopped", settings.app_name)
+
+
+def _start_health_monitor() -> asyncio.Task[None] | None:
+    """Start (or not) the background health-evaluation loop.
+
+    Returns a cancellable task when enabled, otherwise ``None`` so the lifespan
+    can tear it down symmetrically.
+    """
+    if not settings.health_monitor_enabled:
+        return None
+    monitor = HealthMonitorService(get_session_factory())
+    task = asyncio.create_task(
+        run_health_monitor_loop(monitor, interval_seconds=settings.health_monitor_interval_seconds),
+        name="health-monitor",
+    )
+    logger.info("health monitor started (interval=%ss)", settings.health_monitor_interval_seconds)
+    return task
 
 
 app = FastAPI(
@@ -63,7 +117,11 @@ app = FastAPI(
     version=settings.app_version,
     description=(
         "Digital Twin - Car Health Monitoring Platform backend. "
-        "Phase 1 provides vehicle registration and raw telemetry storage."
+        "Vehicle registration and OBD-II telemetry over MQTT and REST; "
+        "deterministic vehicle-health context; an agentic (LangGraph + LLM) "
+        "diagnosis layer grounded in vehicle, health and manufacturer-document "
+        "RAG context; and identity with JWT access tokens plus rotating, "
+        "hashed, revocable refresh tokens and per-user vehicle ownership."
     ),
     lifespan=lifespan,
     openapi_url="/openapi.json",
@@ -104,6 +162,22 @@ async def authentication_error_handler(request: Request, exc: AuthenticationErro
 @app.exception_handler(AuthorizationError)
 async def authorization_error_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
     return JSONResponse(status_code=403, content={"detail": exc.detail})
+
+
+@app.exception_handler(RateLimitError)
+async def rate_limit_error_handler(request: Request, exc: RateLimitError) -> JSONResponse:
+    retry_after = max(1, int(math.ceil(exc.retry_after_seconds)))
+    return JSONResponse(
+        status_code=429,
+        content={"detail": exc.detail},
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+@app.exception_handler(SimulationError)
+async def simulation_error_handler(request: Request, exc: SimulationError) -> JSONResponse:
+    logger.error("Simulation error while handling %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(status_code=502, content={"detail": exc.detail})
 
 
 @app.exception_handler(RAGUploadValidationError)

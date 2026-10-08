@@ -71,6 +71,17 @@ export function formatRelative(iso: string | null | undefined): string {
   return formatDate(iso);
 }
 
+/** True when `iso` is present and older than `maxAgeMs` relative to now. */
+export function isOlderThan(
+  iso: string | null | undefined,
+  maxAgeMs: number,
+): boolean {
+  if (!iso) return false;
+  const time = new Date(iso).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time > maxAgeMs;
+}
+
 /** Duration from seconds, e.g. `9m 40s`. */
 export function formatDuration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return "—";

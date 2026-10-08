@@ -62,13 +62,37 @@ def test_engine_healthy_window_produces_healthy_context() -> None:
     assert context.findings == []
     assert context.data_quality.sample_count == 61
     assert context.data_quality.coverage_ratio == 1.0
-    assert context.context_schema_version == "1.0"
+    assert context.context_schema_version == "1.1"
     assert context.rule_engine_version == "1.0"
     assert len(context.statistics) == 11
     assert context.score_details.starting_score == 100.0
+    assert context.data_sufficiency == "sufficient_data"
+    assert context.provisional is False
+    assert context.provisional_rating is None
 
 
-def test_engine_insufficient_samples_yields_unknown_status() -> None:
+def test_engine_no_samples_yields_no_data() -> None:
+    window = _window()
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=window,
+        samples=[],
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+    )
+
+    assert context.health_status == "no_data"
+    assert context.data_sufficiency == "no_data"
+    assert context.provisional is False
+    assert context.provisional_rating is None
+    assert context.health_score is None
+    assert context.confidence is None
+    assert [f.rule_id for f in context.findings] == ["INSUFFICIENT_DATA"]
+    assert context.score_details.notes
+    assert context.data_quality.sample_count == 0
+
+
+def test_engine_limited_samples_yields_provisional_limited_data() -> None:
     window = _window()
     samples = _points(_healthy_base(), count=4, start_seconds_ago=4.0)
     context = HealthAnalysisEngine().analyze(
@@ -79,11 +103,44 @@ def test_engine_insufficient_samples_yields_unknown_status() -> None:
         expected_interval_seconds=1.0,
     )
 
-    assert context.health_status == "unknown"
-    assert context.health_score is None
-    assert [f.rule_id for f in context.findings] == ["INSUFFICIENT_DATA"]
-    assert context.score_details.notes
+    assert context.health_status == "limited_data"
+    assert context.data_sufficiency == "limited_data"
+    assert context.provisional is True
     assert context.data_quality.sample_count == 4
+    assert "LIMITED_DATA" in {f.rule_id for f in context.findings}
+    assert context.health_score is not None
+    assert context.confidence is not None
+    assert context.confidence < 1.0
+    # The stable 2500 rpm base produces no rule findings, so the provisional
+    # rating is healthy and score_details carries the best available rating.
+    assert context.provisional_rating == "healthy"
+    assert context.score_details.status == "healthy"
+
+
+def test_engine_limited_data_critical_stays_provisional() -> None:
+    base = _healthy_base()
+    base["coolant_temperature"] = 115.0
+    base["engine_load"] = 80.0
+    samples = _points(base, count=3, start_seconds_ago=3.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+    )
+
+    # The definitive status must stay honest (limited data), while the best
+    # available rating is exposed for the detail panel — the board must not
+    # present a few samples as a definitive CRITICAL verdict.
+    assert context.health_status == "limited_data"
+    assert context.data_sufficiency == "limited_data"
+    assert context.provisional is True
+    assert context.provisional_rating == "critical"
+    assert context.score_details.status == "critical"
+    assert context.health_score == 40.0
+    assert context.confidence is not None
+    assert context.confidence < 1.0
 
 
 def test_engine_high_temperature_triggers_critical_finding() -> None:

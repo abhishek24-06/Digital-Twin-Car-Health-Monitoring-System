@@ -11,7 +11,7 @@ import { HealthStatusBadge } from "@/components/health/health-visuals";
 import { FindingsList } from "@/components/health/findings-list";
 import { useHealthContext } from "@/hooks/use-vehicle-data";
 import { useAnalyzeHealth } from "@/hooks/use-mutations";
-import { metricLabel } from "@/lib/metrics";
+import { metricLabel, healthStatus } from "@/lib/metrics";
 import { cn } from "@/lib/utils";
 
 /**
@@ -223,6 +223,50 @@ export function VehicleHealthView() {
                   −{context.score_details.total_penalty.toFixed(0)} penalty
                 </span>
               </div>
+
+              {context.provisional ? (
+                <div className="mt-3 space-y-2 rounded-md border border-line bg-surface-2 px-3 py-2.5 text-xs">
+                  <p className="text-ink">
+                    Provisional assessment — based on limited telemetry, treated as
+                    low-confidence until more data arrives.
+                  </p>
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div className="flex items-center gap-2">
+                      <dt className="text-ink-subtle">Provisional rating</dt>
+                      <dd>
+                        <HealthStatusBadge
+                          status={context.provisional_rating ?? context.score_details.status}
+                          size="sm"
+                        />
+                      </dd>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <dt className="text-ink-subtle">Confidence</dt>
+                      <dd className="tabular">
+                        {context.confidence === null
+                          ? "—"
+                          : `${(context.confidence * 100).toFixed(0)}%`}
+                      </dd>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <dt className="text-ink-subtle">Samples</dt>
+                      <dd className="tabular">{context.data_quality.sample_count}</dd>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <dt className="text-ink-subtle">Coverage</dt>
+                      <dd className="tabular">
+                        {context.data_quality.duration_seconds === null
+                          ? "—"
+                          : `${context.data_quality.duration_seconds.toFixed(0)}s`}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-[0.68rem] text-ink-subtle">
+                    {healthStatus(context.score_details.status).label} is the best
+                    available reading; it is not a definitive verdict.
+                  </p>
+                </div>
+              ) : null}
 
               {context.score_details.components.length === 0 ? (
                 <p className="text-xs text-ink-subtle">No penalty components applied.</p>

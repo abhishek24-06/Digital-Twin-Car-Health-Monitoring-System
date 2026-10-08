@@ -32,8 +32,17 @@ def build_context(
     findings: list[Finding],
     score_details: ScoreDetails,
     confidence: float | None,
+    data_sufficiency: str = "sufficient_data",
+    provisional: bool = False,
+    provisional_rating: str | None = None,
 ) -> HealthContext:
     """Assemble the typed, versioned, serializable health context."""
+    if data_sufficiency == "no_data":
+        status = "no_data"
+    elif data_sufficiency == "limited_data":
+        status = "limited_data"
+    else:
+        status = score_details.status
     return HealthContext(
         vehicle_id=vehicle_id,
         context_schema_version=CONTEXT_SCHEMA_VERSION,
@@ -47,9 +56,12 @@ def build_context(
         baselines=baselines,
         findings=findings,
         health_score=score_details.score,
-        health_status=score_details.status,
+        health_status=status,
         confidence=confidence,
         score_details=score_details,
+        data_sufficiency=data_sufficiency,
+        provisional=provisional,
+        provisional_rating=provisional_rating,
     )
 
 

@@ -44,9 +44,10 @@ from app.models.base import Base
 def make_embedding_column(dimension: int) -> Mapped:
     """Build a pgvector ``vector(dimension)`` mapped column.
 
-    Returns a `Mapped` object for use with ``mapped_column``. pgvector's own
-    SQLAlchemy type is imported here — not at module import time — so the whole
-    package stays importable on test databases without the extension.
+    Note: this is called while the ``RagChunk`` ORM class body is being
+    evaluated, so the pgvector import below happens at module import time and
+    the package is **not** importable without it. ``pgvector`` is therefore a
+    hard runtime dependency declared in pyproject.toml.
 
     Raises:
         RuntimeError: if pgvector's SQLAlchemy type cannot be imported.

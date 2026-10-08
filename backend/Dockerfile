@@ -17,7 +17,12 @@ COPY app ./app
 COPY simulator ./simulator
 COPY scripts ./scripts
 
-RUN pip install --no-cache-dir -e .
+# Install with the `rag` extra so the container can actually serve
+# /api/v1/rag/search and /api/v1/admin/rag/documents. Those imports are lazy,
+# so the app would start without them and only fail on the first request.
+# This pulls torch/transformers/docling and makes the image large; drop to
+# `-e .` to build a smaller image that serves everything except RAG.
+RUN pip install --no-cache-dir -e ".[rag]"
 
 EXPOSE 8000
 

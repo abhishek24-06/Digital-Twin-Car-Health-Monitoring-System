@@ -1,39 +1,68 @@
-.PHONY: install dev test lint format migrate migration docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker db-check db-current db-heads db-history agent-llm-smoke
+# Developer entrypoints for the Digital Twin backend.
+#
+# Cross-platform (Windows + POSIX). The venv interpreter is resolved per
+# platform -- Windows venvs keep executables in .venv/Scripts/, POSIX in
+# .venv/bin/ -- and recipes invoke tools through `python -m`, so no recipe
+# depends on POSIX-only shell builtins. The interactive Bash `read -p` in
+# `migration` is replaced by a Python prompt (scripts/make_migration.py).
+.PHONY: install dev test lint format migrate migration db-verify db-check db-current db-heads db-history db-reset-local docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker agent-llm-smoke
 
-install:
+# Resolved lazily (recursive variable) so `make install` on a fresh checkout
+# sees the venv it just created; falls back to a system `python`.
+PY = $(firstword $(wildcard .venv/Scripts/python.exe) $(wildcard .venv/bin/python) $(wildcard .venv/Scripts/python) python)
+
+.venv:
 	python -m venv .venv
-	.venv/bin/pip install -e ".[dev]"
+
+install: .venv
+	$(PY) -m pip install --upgrade pip
+	$(PY) -m pip install -e ".[dev]"
 
 dev:
-	.venv/bin/uvicorn app.main:app --reload
+	$(PY) -m uvicorn app.main:app --reload
 
 test:
-	.venv/bin/pytest
+	$(PY) -m pytest
 
 lint:
-	.venv/bin/ruff check .
+	$(PY) -m ruff check .
 
 format:
-	.venv/bin/ruff check . --fix
-	.venv/bin/ruff format .
+	$(PY) -m ruff check . --fix
+	$(PY) -m ruff format .
 
 migrate:
-	.venv/bin/alembic upgrade head
+	$(PY) -m alembic upgrade head
+
+# Verify the configured DATABASE_URL serves the pgvector schema (extension,
+# HNSW index and operators). Used by CI after `alembic upgrade head`.
+db-verify:
+	$(PY) -m scripts.verify_pgvector
 
 # Verify DATABASE_URL is reachable (independent probe; prints TLS status).
 db-check:
-	.venv/bin/python -m scripts.check_db
+	$(PY) -m scripts.check_db
 
 # Inspect migration state/targets for the configured DATABASE_URL.
 db-current:
-	.venv/bin/alembic current
+	$(PY) -m alembic current
 db-heads:
-	.venv/bin/alembic heads
+	$(PY) -m alembic heads
 db-history:
-	.venv/bin/alembic history --verbose
+	$(PY) -m alembic history --verbose
 
+# Reset ONLY the schema of an explicitly local development database. The
+# helper refuses (non-zero exit) when DATABASE_URL targets Supabase or any
+# non-local host, so it can never repeat the accidental Supabase DROP SCHEMA.
+db-reset-local:
+	$(PY) -m scripts.reset_local_db --yes
+
+# `make migration MESSAGE="..."` runs non-interactively; without MESSAGE the
+# helper prompts for the message. The exported MESSAGE reaches the helper via
+# the environment on every platform.
+export MESSAGE
 migration:
-	@read -p "Message: " msg; .venv/bin/alembic revision --autogenerate -m "$$msg"
+	$(PY) -m scripts.make_migration
 
 docker-up:
 	docker compose up --build
@@ -42,7 +71,7 @@ docker-down:
 	docker compose down
 
 shell:
-	.venv/bin/python
+	$(PY)
 
 # ------------------------------------------------------------------ Phase 2
 
@@ -58,19 +87,19 @@ logs:
 
 # Create the fixed demo vehicle the simulator publishes for (idempotent).
 seed-demo-vehicle:
-	.venv/bin/python -m scripts.seed_demo_vehicle
+	$(PY) -m scripts.seed_demo_vehicle
 
 # Run the MQTT subscriber standalone (uses .env broker + database settings).
 mqtt-subscriber:
-	.venv/bin/python -m app.mqtt.subscriber
+	$(PY) -m app.mqtt.subscriber
 
 # Run the vehicle simulator standalone (requires SIMULATOR_VEHICLE_ID).
 simulator:
-	.venv/bin/python -m simulator.main
+	$(PY) -m simulator.main
 
 # End-to-end suite against a real broker (start one with `make mqtt-broker`).
 mqtt-test:
-	.venv/bin/pytest -m mqtt_e2e
+	$(PY) -m pytest -m mqtt_e2e
 
 # Start a local (loopback-only, anonymous) Mosquitto broker for development.
 mqtt-broker:
@@ -79,5 +108,7 @@ mqtt-broker:
 # ------------------------------------------------------------------ Phase 4
 
 # Gate-controlled live LLM smoke test (real provider key required in .env).
+# The gate is injected via runpy so this target works on Windows too (the
+# POSIX-only `VAR=value cmd` prefix is avoided).
 agent-llm-smoke:
-	RUN_LLM_SMOKE_TEST=true .venv/bin/python -m scripts.smoke_agent_llm
+	$(PY) -c "import os,runpy; os.environ['RUN_LLM_SMOKE_TEST']='true'; runpy.run_module('scripts.smoke_agent_llm', run_name='__main__')"

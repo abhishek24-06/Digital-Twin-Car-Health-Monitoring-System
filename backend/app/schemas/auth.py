@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.security import password_too_long_for_bcrypt
 from app.schemas.user import UserResponse
+
+_BYTE_LIMIT_MESSAGE = "password must not exceed 72 bytes when encoded as UTF-8"
 
 
 class RegisterRequest(BaseModel):
@@ -20,12 +23,26 @@ class RegisterRequest(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
+    @field_validator("password")
+    @classmethod
+    def _password_within_bcrypt_bytes(cls, value: str) -> str:
+        if password_too_long_for_bcrypt(value):
+            raise ValueError(_BYTE_LIMIT_MESSAGE)
+        return value
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=72)
 
     model_config = ConfigDict(str_strip_whitespace=True)
+
+    @field_validator("password")
+    @classmethod
+    def _password_within_bcrypt_bytes(cls, value: str) -> str:
+        if password_too_long_for_bcrypt(value):
+            raise ValueError(_BYTE_LIMIT_MESSAGE)
+        return value
 
 
 class RefreshRequest(BaseModel):
@@ -34,6 +51,26 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=512)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Self-service password change. Requires the current password."""
+
+    current_password: str = Field(min_length=1, max_length=72)
+    new_password: str = Field(
+        min_length=8,
+        max_length=72,
+        description="Password (bcrypt has 72-byte limit; 8+ chars required)",
+    )
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    @field_validator("current_password", "new_password")
+    @classmethod
+    def _password_within_bcrypt_bytes(cls, value: str) -> str:
+        if password_too_long_for_bcrypt(value):
+            raise ValueError(_BYTE_LIMIT_MESSAGE)
+        return value
 
 
 class TokenResponse(BaseModel):
@@ -45,6 +82,7 @@ class TokenResponse(BaseModel):
 
 
 __all__ = [
+    "ChangePasswordRequest",
     "LoginRequest",
     "LogoutRequest",
     "RefreshRequest",

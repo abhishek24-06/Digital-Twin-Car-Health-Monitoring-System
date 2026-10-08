@@ -14,7 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 #: Version of the Vehicle Health Context schema. Bump when the shape changes.
-CONTEXT_SCHEMA_VERSION = "1.0"
+CONTEXT_SCHEMA_VERSION = "1.1"
 
 #: Version of the deterministic rule/analysis engine.
 RULE_ENGINE_VERSION = "1.0"
@@ -22,7 +22,14 @@ RULE_ENGINE_VERSION = "1.0"
 TrendDirection = Literal["increasing", "decreasing", "stable", "insufficient_data"]
 TrendStrength = Literal["none", "weak", "moderate", "strong"]
 Severity = Literal["info", "warning", "critical"]
-HealthStatus = Literal["healthy", "attention", "critical", "unknown"]
+#: The definitive health classification. ``no_data`` (no telemetry) and
+#: ``limited_data`` (fewer samples than the hard minimum) are data-state
+#: labels: a limited-data assessment is *provisional* and the actual rating
+#: (healthy/attention/critical) is exposed via ``ScoreDetails.status`` and
+#: ``HealthContext.provisional_rating``.
+HealthStatus = Literal["healthy", "attention", "critical", "unknown", "no_data", "limited_data"]
+#: Amount of telemetry the health assessment is based on.
+DataSufficiency = Literal["no_data", "limited_data", "sufficient_data"]
 BaselineStatus = Literal["within", "elevated", "depressed", "insufficient_history"]
 
 #: Physical units for every supported telemetry metric.
@@ -166,6 +173,10 @@ class ScoreDetails(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+#: Ratings that reflect the vehicle's condition rather than its data state.
+RATING_STATUSES: tuple[str, ...] = ("healthy", "attention", "critical")
+
+
 class HealthContext(BaseModel):
     """The complete, serialisable Vehicle Health Context produced by analysis."""
 
@@ -184,3 +195,10 @@ class HealthContext(BaseModel):
     health_status: HealthStatus
     confidence: float | None
     score_details: ScoreDetails
+    #: Amount of telemetry this assessment is based on (Phase 10).
+    data_sufficiency: DataSufficiency = "sufficient_data"
+    #: True when the assessment is provisional (limited data, low confidence).
+    provisional: bool = False
+    #: The best available rating while ``health_status`` is a data-state label
+    #: (e.g. ``limited_data`` with a ``critical`` provisional rating).
+    provisional_rating: HealthStatus | None = None

@@ -19,14 +19,32 @@ from app.core.config import Settings
 JWT_TYPE_ACCESS = "access"
 JWT_TYPE_REFRESH = "refresh"
 
+#: bcrypt's hard input limit is 72 *bytes*, not characters. The Python bindings
+#: (bcrypt 5.x) raise ``ValueError`` when this is exceeded, so callers must
+#: reject oversized passwords before hashing to avoid a 500.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def password_too_long_for_bcrypt(password: str) -> bool:
+    """True when the UTF-8 encoding exceeds bcrypt's 72-byte input limit."""
+    return len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES
+
 
 def hash_password(password: str) -> str:
     """Hash a plaintext password with bcrypt (72-byte limit enforced upstream)."""
+    if password_too_long_for_bcrypt(password):
+        raise ValueError(f"password exceeds bcrypt's {BCRYPT_MAX_PASSWORD_BYTES}-byte limit")
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    """Constant-time-ish password verification; never raises on malformed hash."""
+    """Constant-time-ish verification; never raises on malformed hash or input.
+
+    Passwords the platform refused to hash are never verified, even though
+    bcrypt's own ``checkpw`` would silently truncate them into a false match.
+    """
+    if password_too_long_for_bcrypt(password):
+        return False
     try:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except ValueError:

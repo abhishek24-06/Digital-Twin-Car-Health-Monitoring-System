@@ -7,6 +7,7 @@ import {
   Activity,
   BookOpen,
   Car,
+  CirclePlay,
   Gauge,
   LayoutDashboard,
   ShieldCheck,
@@ -37,6 +38,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "My Vehicles",
     icon: Car,
     description: "Register and manage vehicles",
+  },
+  {
+    href: "/simulations",
+    label: "Simulation Control",
+    icon: CirclePlay,
+    description: "Start and stop per-vehicle data simulators",
   },
   {
     href: "/rag",
