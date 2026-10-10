@@ -11,6 +11,7 @@ from app.api.routes import (
     users,
     vehicle_health,
     vehicles,
+    workflow,
 )
 
 api_router = APIRouter()
@@ -46,3 +47,4 @@ api_router.include_router(
 )
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG"])
 api_router.include_router(admin_rag.router, prefix="/admin", tags=["Admin RAG"])
+api_router.include_router(workflow.router, prefix="", tags=["Workflow"])

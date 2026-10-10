@@ -7,11 +7,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.dependencies.auth import get_current_user
-from app.dependencies.database import get_db, get_telemetry_service
+from app.core.database import get_session_factory
+from app.dependencies.auth import get_current_user, get_current_user_stream
+from app.dependencies.database import get_telemetry_service
 from app.models.user import User
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
@@ -79,7 +79,6 @@ async def list_telemetry(
 
 
 async def _read_stream(
-    repository: TelemetryRepository,
     vehicle_id: UUID,
     *,
     interval_seconds: float,
@@ -90,10 +89,20 @@ async def _read_stream(
     the batch), ``events`` (the telemetry records received since the last
     event), and ``server_time``. Idle polls emit a heartbeat comment so clients
     and intermediaries can tell a healthy but quiet stream from a dead one.
+
+    Every poll uses its own short-lived session so a stream never pins a pooled
+    connection (or an open transaction) for its lifetime -- the same reason the
+    workflow SSE route resolves auth without the request-scoped DB session.
     """
     cursor = datetime.now(UTC)
     while True:
-        records = await repository.list_since(vehicle_id, after=cursor, limit=200)
+        session = get_session_factory()()
+        try:
+            records = await TelemetryRepository(session).list_since(
+                vehicle_id, after=cursor, limit=200
+            )
+        finally:
+            await session.close()
         now = datetime.now(UTC)
         if records:
             cursor = records[-1].timestamp
@@ -129,11 +138,14 @@ async def _read_stream(
 )
 async def stream_telemetry(
     vehicle_id: UUID,
-    user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user_stream)],
     interval_seconds: Annotated[float | None, Query(gt=0, le=60)] = None,
 ) -> StreamingResponse:
-    await ensure_vehicle_access(VehicleRepository(session), vehicle_id, user)
+    access_session = get_session_factory()()
+    try:
+        await ensure_vehicle_access(VehicleRepository(access_session), vehicle_id, user)
+    finally:
+        await access_session.close()
     interval = (
         interval_seconds
         if interval_seconds is not None
@@ -141,7 +153,6 @@ async def stream_telemetry(
     )
     return StreamingResponse(
         _read_stream(
-            TelemetryRepository(session),
             vehicle_id,
             interval_seconds=interval,
         ),

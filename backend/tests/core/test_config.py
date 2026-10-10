@@ -32,7 +32,7 @@ def test_health_monitor_defaults(monkeypatch) -> None:
     settings = Settings()
 
     assert settings.health_monitor_enabled is True
-    assert settings.health_monitor_interval_seconds == 30.0
+    assert settings.health_monitor_interval_seconds == 10.0
     assert settings.health_monitor_min_seconds == 60.0
     assert settings.health_monitor_max_vehicles == 25
 

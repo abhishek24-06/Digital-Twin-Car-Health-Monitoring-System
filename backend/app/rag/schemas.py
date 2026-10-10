@@ -76,6 +76,7 @@ class RAGSearchResult(BaseModel):
     available: bool = False
     reason: str = ""
     metrics: dict[str, Any] = Field(default_factory=dict)
+    correlation_id: str | None = None
 
 
 class RAGDocumentSummary(BaseModel):

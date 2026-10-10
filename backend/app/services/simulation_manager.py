@@ -43,7 +43,7 @@ import signal
 import subprocess
 import sys
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -52,6 +52,14 @@ from uuid import UUID
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ConflictError, SimulationError
 from app.schemas.simulation import SimulationState
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    new_correlation_id,
+    sanitize_metadata,
+)
+from app.services.workflow_event_bus import publish_workflow_event
 from simulator.config import ScenarioName
 
 logger = logging.getLogger(__name__)
@@ -173,6 +181,7 @@ class SimulationStatus:
     seed: int | None = None
     started_at: datetime | None = None
     error: str | None = None
+    correlation_id: str | None = None
 
 
 @dataclass
@@ -235,6 +244,8 @@ class SimulationManager:
         scenario: ScenarioName,
         interval_seconds: float,
         seed: int | None = None,
+        *,
+        correlation_id: str | None = None,
     ) -> SimulationStatus:
         """Spawn and supervise a simulator for ``vehicle_id``.
 
@@ -242,6 +253,25 @@ class SimulationManager:
         stopping for the vehicle, and ``SimulationError`` when the process
         cannot be spawned at the OS level.
         """
+        if correlation_id is None:
+            correlation_id = new_correlation_id("sim")
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_START_REQUESTED,
+            status=WorkflowStatus.STARTED,
+            message=f"Simulation start requested for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "scenario": scenario,
+                    "interval_seconds": interval_seconds,
+                    "seed": seed or DEFAULT_SEED,
+                }
+            ),
+        )
+
         async with self._lock:
             existing = self._instances.get(vehicle_id)
             if existing is not None and existing.status not in (
@@ -250,22 +280,62 @@ class SimulationManager:
             ):
                 raise ConflictError("A simulation is already running for this vehicle")
             instance = await self._spawn_locked(vehicle_id, scenario, interval_seconds, seed)
-        await self._await_initial_state(instance)
-        return self._to_status(vehicle_id, instance)
 
-    async def stop(self, vehicle_id: UUID) -> SimulationStatus:
+        await self._await_initial_state(instance)
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_STARTED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Simulation started for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "scenario": scenario,
+                    "interval_seconds": interval_seconds,
+                    "pid": instance.process.pid if instance.process else None,
+                }
+            ),
+        )
+
+        return replace(self._to_status(vehicle_id, instance), correlation_id=correlation_id)
+
+    async def stop(
+        self, vehicle_id: UUID, *, correlation_id: str | None = None
+    ) -> SimulationStatus:
         """Gracefully stop any simulator for ``vehicle_id``.
 
         Idempotent: stopping a vehicle with no simulator returns a ``stopped``
         status instead of an error.
         """
+        if correlation_id is None:
+            correlation_id = new_correlation_id("sim")
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_STOP_REQUESTED,
+            status=WorkflowStatus.STARTED,
+            message=f"Simulation stop requested for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+        )
+
         async with self._lock:
             instance = self._instances.get(vehicle_id)
             process = instance.process if instance is not None else None
             if process is None:
-                return self._stopped_status(vehicle_id)
+                await publish_workflow_event(
+                    workflow=WorkflowType.SIMULATION,
+                    stage=WorkflowStage.SIMULATION_STOPPED,
+                    status=WorkflowStatus.SUCCESS,
+                    message=f"Simulation stop requested but no simulator running for vehicle {vehicle_id}",
+                    vehicle_id=str(vehicle_id),
+                    correlation_id=correlation_id,
+                )
+                return replace(self._stopped_status(vehicle_id), correlation_id=correlation_id)
             if instance.status not in (_STATE_RUNNING, _STATE_STARTING, _STATE_STOPPING):
-                return self._to_status(vehicle_id, instance)
+                return replace(self._to_status(vehicle_id, instance), correlation_id=correlation_id)
             instance.status = _STATE_STOPPING
             try:
                 await self._terminate(process)
@@ -276,7 +346,17 @@ class SimulationManager:
                     # observed the exit yet; the response must not race it.
                     instance.status = _STATE_STOPPED
                     instance.error = None
-        return self._to_status(vehicle_id, instance)
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_STOPPED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Simulation stopped for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+        )
+
+        return replace(self._to_status(vehicle_id, instance), correlation_id=correlation_id)
 
     async def restart(
         self,
@@ -284,8 +364,29 @@ class SimulationManager:
         scenario: ScenarioName,
         interval_seconds: float,
         seed: int | None = None,
+        *,
+        correlation_id: str | None = None,
     ) -> SimulationStatus:
         """Stop any running simulator and start a fresh one with new config."""
+        if correlation_id is None:
+            correlation_id = new_correlation_id("sim")
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_RESTART_REQUESTED,
+            status=WorkflowStatus.STARTED,
+            message=f"Simulation restart requested for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "scenario": scenario,
+                    "interval_seconds": interval_seconds,
+                    "seed": seed or DEFAULT_SEED,
+                }
+            ),
+        )
+
         async with self._lock:
             existing = self._instances.get(vehicle_id)
             if (
@@ -303,7 +404,24 @@ class SimulationManager:
                 self._remove_pid_file(existing)
             instance = await self._spawn_locked(vehicle_id, scenario, interval_seconds, seed)
         await self._await_initial_state(instance)
-        return self._to_status(vehicle_id, instance)
+
+        await publish_workflow_event(
+            workflow=WorkflowType.SIMULATION,
+            stage=WorkflowStage.SIMULATION_RESTARTED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Simulation restarted for vehicle {vehicle_id}",
+            vehicle_id=str(vehicle_id),
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "scenario": scenario,
+                    "interval_seconds": interval_seconds,
+                    "pid": instance.process.pid if instance.process else None,
+                }
+            ),
+        )
+
+        return replace(self._to_status(vehicle_id, instance), correlation_id=correlation_id)
 
     async def get_status(self, vehicle_id: UUID) -> SimulationStatus:
         async with self._lock:
@@ -452,6 +570,23 @@ class SimulationManager:
             else:
                 instance.status = _STATE_ERROR
                 instance.error = _exit_reason(rc, instance.log_file)
+
+                # Emit error event for unexpected process exit
+                await publish_workflow_event(
+                    workflow=WorkflowType.SIMULATION,
+                    stage=WorkflowStage.SIMULATION_PROCESS_EXIT,
+                    status=WorkflowStatus.ERROR,
+                    message=f"Simulator process exited unexpectedly for vehicle {instance.vehicle_id} (exit code {rc})",
+                    vehicle_id=str(instance.vehicle_id),
+                    correlation_id=f"sim-{instance.vehicle_id}-{int(instance.started_at.timestamp())}",
+                    metadata=sanitize_metadata(
+                        {
+                            "exit_code": rc,
+                            "scenario": instance.scenario,
+                            "pid": instance.process.pid if instance.process else None,
+                        }
+                    ),
+                )
             self._finalize_locked(instance)
             instance.settled.set()
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,16 @@ from app.schemas.telemetry import TelemetryCreate
 from app.services.vehicle_access import ensure_vehicle_access
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BatchIngestResult:
+    """Outcome of a batched telemetry write (counts, not rows)."""
+
+    submitted: int = 0
+    inserted: int = 0
+    duplicates: int = 0
+    unknown_vehicle_ids: set[UUID] = field(default_factory=set)
 
 
 class TelemetryService:
@@ -102,6 +114,42 @@ class TelemetryService:
 
         await self._session.commit()
         return created
+
+    async def ingest_batch(
+        self, items: Sequence[tuple[UUID, TelemetryCreate]]
+    ) -> BatchIngestResult:
+        """Persist many telemetry samples with a single database write.
+
+        This is the subscriber's hot path. Instead of one existence check, one
+        duplicate pre-check, one insert and one refresh round trip *per message*,
+        a whole batch is validated with one query and written with one
+        ``INSERT ... ON CONFLICT DO NOTHING``. Idempotency semantics match
+        :meth:`create_telemetry`: rows whose ``(vehicle_id, source_event_id)``
+        already exist are skipped rather than duplicated, and messages for
+        vehicles that do not exist are dropped (reported to the caller) instead
+        of aborting the batch.
+        """
+        result = BatchIngestResult(submitted=len(items))
+        if not items:
+            return result
+
+        known = await self._vehicle_repository.existing_ids({vehicle_id for vehicle_id, _ in items})
+        records: list[TelemetryRecord] = []
+        for vehicle_id, data in items:
+            if vehicle_id not in known:
+                result.unknown_vehicle_ids.add(vehicle_id)
+                continue
+            records.append(TelemetryRecord(id=uuid4(), vehicle_id=vehicle_id, **data.model_dump()))
+
+        try:
+            result.inserted = await self._repository.insert_many(records)
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise DatabaseError("Failed to persist telemetry batch") from exc
+
+        await self._session.commit()
+        result.duplicates = len(records) - result.inserted
+        return result
 
     async def list_vehicle_telemetry(
         self,

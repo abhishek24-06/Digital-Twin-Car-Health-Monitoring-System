@@ -6,12 +6,14 @@ test database; only the broker is absent (messages are constructed directly).
 
 import asyncio
 import json
+from datetime import datetime
 from uuid import uuid4
 
 import aiomqtt
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
 from app.core.config import get_settings
+from app.core.database import get_engine
 from app.models.telemetry import TelemetryRecord
 from app.mqtt.subscriber import MQTTSubscriber
 
@@ -156,3 +158,94 @@ async def test_run_forever_returns_when_stop_set(session_factory) -> None:
     stop_event = asyncio.Event()
     stop_event.set()
     await asyncio.wait_for(subscriber.run_forever(stop_event), timeout=2.0)
+
+
+# --- Batched persistence (ingestion throughput regression) ------------------
+#
+# Root cause of the live "stale telemetry / no_data" incident: the subscriber
+# persisted one message per transaction (one existence SELECT, one duplicate
+# SELECT, one INSERT, one refresh SELECT, one COMMIT). Over a high-latency
+# database a serial loop cannot keep up with several 1 Hz publishers, so the
+# in-memory backlog grew and every sample landed already older than the health
+# analysis window. These tests pin the batched behaviour that fixes it.
+
+
+async def _count_insert_statements(session_factory, coro) -> tuple[int, int]:
+    """Run ``coro`` while counting INSERTs into ``telemetry_records``.
+
+    Returns ``(insert_statements, rows)``. Pre-fix, N messages produced N INSERT
+    statements; the fix must produce a single multi-row statement.
+    """
+    statements: list[str] = []
+    engine = get_engine()
+
+    def _record(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+        if "INSERT INTO telemetry_records" in statement:
+            statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", _record)
+    try:
+        await coro
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", _record)
+
+    return len(statements), await _record_count(session_factory)
+
+
+async def test_batch_flush_uses_a_single_insert_statement(session_factory, sample_vehicle) -> None:
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    vehicle_id = sample_vehicle["id"]
+    topic = f"vehicles/{vehicle_id}/telemetry"
+    messages = [mqtt_message(topic, envelope_json(vehicle_id, f"stmt-{i}")) for i in range(25)]
+
+    insert_statements, rows = await _count_insert_statements(
+        session_factory, subscriber._flush_batch(messages)
+    )
+
+    assert rows == 25
+    assert insert_statements == 1, (
+        f"expected one batched INSERT for 25 messages, saw {insert_statements}"
+    )
+
+
+async def test_batch_flush_persists_timestamp_verbatim(session_factory, sample_vehicle) -> None:
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    vehicle_id = sample_vehicle["id"]
+    topic = f"vehicles/{vehicle_id}/telemetry"
+
+    await subscriber._flush_batch([mqtt_message(topic, envelope_json(vehicle_id, "ts-1"))])
+
+    async with session_factory() as session:
+        record = await session.scalar(select(TelemetryRecord))
+    assert record.timestamp == datetime.fromisoformat("2026-09-20T10:00:00+00:00")
+
+
+async def test_batch_flush_dedupes_duplicate_events(session_factory, sample_vehicle) -> None:
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    vehicle_id = sample_vehicle["id"]
+    topic = f"vehicles/{vehicle_id}/telemetry"
+    payload = envelope_json(vehicle_id, "same-event")
+
+    await subscriber._flush_batch([mqtt_message(topic, payload), mqtt_message(topic, payload)])
+
+    assert await _record_count(session_factory) == 1
+
+
+async def test_batch_flush_keeps_known_vehicle_and_drops_unknown(
+    session_factory, sample_vehicle
+) -> None:
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    known = sample_vehicle["id"]
+    unknown = str(uuid4())
+
+    await subscriber._flush_batch(
+        [
+            mqtt_message(f"vehicles/{known}/telemetry", envelope_json(known, "k1")),
+            mqtt_message(f"vehicles/{unknown}/telemetry", envelope_json(unknown, "u1")),
+        ]
+    )
+
+    assert await _record_count(session_factory) == 1
+    async with session_factory() as session:
+        record = await session.scalar(select(TelemetryRecord))
+    assert str(record.vehicle_id) == known

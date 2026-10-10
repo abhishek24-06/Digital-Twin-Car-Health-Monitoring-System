@@ -8,6 +8,7 @@ import { Field, Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, ErrorState, InlineAlert } from "@/components/states/feedback";
 import { PageHeader } from "@/components/layout/page-header";
+import { ContextualPipeline } from "@/components/workflow/contextual-pipeline";
 import { ragApi } from "@/services/rag";
 import { toApiError } from "@/lib/api-error";
 import { useActiveVehicleId } from "@/hooks/use-active-vehicle";
@@ -157,6 +158,13 @@ export function RagSearchView() {
       </Card>
 
       {result ? <RagResults result={result} /> : null}
+
+      {result ? (
+        <ContextualPipeline
+          id="rag_query"
+          correlationId={result.correlation_id ?? undefined}
+        />
+      ) : null}
     </div>
   );
 }

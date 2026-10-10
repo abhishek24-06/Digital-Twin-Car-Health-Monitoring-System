@@ -4,8 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { VehicleDiagnosisView } from "@/components/vehicles/vehicle-diagnosis-view";
 import { agentApi } from "@/services/vehicles";
 import { ApiError } from "@/lib/api-error";
-import { renderWithProviders } from "@/test/utils";
-import type { DiagnosisResponse } from "@/types/api";
+import {
+  createWorkflowStreamHarness,
+  renderWithProviders,
+  TEST_VEHICLE,
+} from "@/test/utils";
+import type { DiagnosisResponse, WorkflowEventResponse } from "@/types/api";
 
 const paramsMock = vi.fn(() => ({ id: "22222222-2222-4222-8222-222222222222" }));
 
@@ -176,5 +180,87 @@ describe("VehicleDiagnosisView", () => {
     expect(
       await screen.findByText(/front brake pads are near the wear limit/i),
     ).toBeTruthy();
+  });
+});
+
+function agentEvent(
+  overrides: Partial<WorkflowEventResponse> = {},
+): WorkflowEventResponse {
+  return {
+    event_id: "agent-evt",
+    timestamp: "2026-01-01T00:00:00Z",
+    workflow: "agent",
+    stage: "reasoning_started",
+    status: "running",
+    message: "Reasoning",
+    vehicle_id: TEST_VEHICLE.id,
+    document_id: null,
+    correlation_id: null,
+    duration_ms: null,
+    metadata: {},
+    ...overrides,
+  };
+}
+
+describe("VehicleDiagnosisView contextual agent pipeline", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(agentApi, "latest").mockRejectedValue(
+      new ApiError(404, "Diagnosis not found"),
+    );
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("reveals the agent pipeline after real agent activity", async () => {
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<VehicleDiagnosisView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    expect(screen.queryByText("Agent Pipeline")).toBeNull();
+
+    harness.latest().emit(agentEvent({ stage: "reasoning_started" }));
+
+    expect(await screen.findByText("Agent Pipeline")).toBeTruthy();
+    expect(screen.getAllByText("Reasoning").length).toBeGreaterThan(0);
+  });
+
+  it("advances the reasoning and completed stages from a real pair", async () => {
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<VehicleDiagnosisView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    harness.latest().emit(agentEvent({ event_id: "a", stage: "reasoning_started" }));
+    harness
+      .latest()
+      .emit(
+        agentEvent({ event_id: "b", stage: "agent_completed", status: "success" }),
+      );
+
+    expect(await screen.findByText("Success")).toBeTruthy();
+  });
+
+  it("renders an agent error from a real AGENT_ERROR event", async () => {
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<VehicleDiagnosisView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    harness.latest().emit(
+      agentEvent({
+        stage: "agent_error",
+        status: "error",
+        message: "The AI provider is not configured.",
+      }),
+    );
+
+    expect(await screen.findByText("Error")).toBeTruthy();
+  });
+
+  it("still renders the diagnosis panel", async () => {
+    renderWithProviders(<VehicleDiagnosisView />);
+    expect(screen.getByLabelText(/question about this vehicle/i)).toBeTruthy();
   });
 });

@@ -81,6 +81,7 @@ class AdminRagUploadResponse(BaseModel):
     parser_name: str | None = None
     embedding_model: str | None = None
     embedding_dimension: int | None = None
+    correlation_id: str | None = None
 
 
 class AdminRagDocumentDetailResponse(RAGDocumentSummary):

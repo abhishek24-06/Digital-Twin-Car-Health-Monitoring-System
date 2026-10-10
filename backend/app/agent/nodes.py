@@ -8,7 +8,7 @@ fully grounded reasoning object so the validate/persist path stays uniform.
 from __future__ import annotations
 
 import json
-import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -24,28 +24,91 @@ from app.agent.schemas import (
     DiagnosisContent,
     DiagnosisResponse,
     ExecutionMetadata,
+    ManufacturerEvidence,
 )
 from app.agent.state import AgentState
 from app.agent.tools.vehicle_context import VehicleContextTool
 from app.agent.triggers import TriggerType
 from app.models.agent_diagnosis import AgentDiagnosis
-
-logger = logging.getLogger(__name__)
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    sanitize_metadata,
+)
+from app.services.workflow_event_bus import publish_workflow_event
 
 
 async def supervisor_node(
     state: AgentState, *, tool: VehicleContextTool, rag_tool: Any
 ) -> dict[str, Any]:
     """Gather the Vehicle Health Context and decide whether LLM/RAG is needed."""
+    correlation_id = state.get("agent_run_id") or str(uuid4())
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.AGENT_REQUEST_RECEIVED,
+        status=WorkflowStatus.STARTED,
+        message=f"Agent request received for vehicle {state['vehicle_id']}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "trigger_type": state.get("trigger_type", "").value
+                if hasattr(state.get("trigger_type"), "value")
+                else str(state.get("trigger_type", "")),
+                "user_query": state.get("user_query", "")[:100],
+            }
+        ),
+    )
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.SUPERVISOR_STARTED,
+        status=WorkflowStatus.RUNNING,
+        message=f"Supervisor started for vehicle {state['vehicle_id']}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+    )
+
     result = await tool.get_context(state["vehicle_id"])
     has_context = result.context is not None
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.VEHICLE_CONTEXT_LOADED,
+        status=WorkflowStatus.SUCCESS if has_context else WorkflowStatus.WARNING,
+        message=f"Vehicle context loaded: {'available' if has_context else 'not available'}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "has_context": has_context,
+                "severity": result.severity if has_context else None,
+                "confidence": result.confidence if has_context else None,
+            }
+        ),
+    )
+
+    needs_rag = _needs_rag(rag_tool, state.get("user_query") or "")
+    if needs_rag:
+        await publish_workflow_event(
+            workflow=WorkflowType.AGENT,
+            stage=WorkflowStage.MANUFACTURER_CONTEXT_REQUESTED,
+            status=WorkflowStatus.RUNNING,
+            message="RAG context requested for query",
+            vehicle_id=str(state["vehicle_id"]),
+            correlation_id=correlation_id,
+        )
+
+    needs_rag = _needs_rag(rag_tool, state.get("user_query") or "")
     return {
         "agent_run_id": state.get("agent_run_id") or str(uuid4()),
         "vehicle_context": result.context.model_dump(mode="json") if has_context else None,
         "serialized_context": result.serialized_context,
         "context_note": result.context_note,
         "needs_llm": has_context,
-        "needs_rag": _needs_rag(rag_tool, state.get("user_query") or ""),
+        "needs_rag": needs_rag,
         "severity": result.severity,
         "confidence": result.confidence,
         "context_timestamp": result.context_timestamp,
@@ -73,10 +136,48 @@ async def rag_node(state: AgentState, *, rag_tool: Any) -> dict[str, Any]:
     RAG evidence alone is enough to route to the reasoning step, even when no
     Vehicle Health Context exists (``needs_llm`` is upgraded to ``True``).
     """
+    correlation_id = state.get("agent_run_id") or str(uuid4())
+
     if rag_tool is None:
+        await publish_workflow_event(
+            workflow=WorkflowType.AGENT,
+            stage=WorkflowStage.RAG_CONTEXT_RECEIVED,
+            status=WorkflowStatus.SUCCESS,
+            message="RAG tool not available",
+            vehicle_id=str(state["vehicle_id"]),
+            correlation_id=correlation_id,
+        )
         return {"needs_rag": False, "manufacturer_guidance": None}
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.MANUFACTURER_CONTEXT_REQUESTED,
+        status=WorkflowStatus.RUNNING,
+        message=f"Requesting manufacturer guidance for vehicle {state['vehicle_id']}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+    )
+
     result = await rag_tool.get_guidance(state["vehicle_id"], state.get("user_query") or "")
     payload = _guidance_payload(result)
+
+    evidence_count = len(payload.get("evidence") or [])
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.RAG_CONTEXT_RECEIVED,
+        status=WorkflowStatus.SUCCESS,
+        message=f"Manufacturer guidance received: {evidence_count} evidence items",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "evidence_count": evidence_count,
+                "available": payload.get("available"),
+                "sources": [e.get("source_filename", "") for e in payload.get("evidence", [])],
+            }
+        ),
+    )
+
     return {
         "manufacturer_guidance": payload,
         "needs_llm": bool(state.get("needs_llm", False)) or bool(payload.get("evidence")),
@@ -90,6 +191,17 @@ def should_reason(state: AgentState) -> str:
 
 async def reason_node(state: AgentState, *, llm_service: LLMService) -> dict[str, Any]:
     """Invoke the LLM over the bounded context and capture execution metadata."""
+    correlation_id = state.get("agent_run_id") or str(uuid4())
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.REASONING_STARTED,
+        status=WorkflowStatus.RUNNING,
+        message=f"Starting LLM reasoning for vehicle {state['vehicle_id']}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+    )
+
     pre_set = state.get("execution_metadata") or {}
     mg = state.get("manufacturer_guidance") or {}
     rag_available = bool(mg.get("available")) and bool(mg.get("evidence"))
@@ -97,6 +209,7 @@ async def reason_node(state: AgentState, *, llm_service: LLMService) -> dict[str
     evidence = (mg.get("evidence") or []) if rag_available else []
     rag_metrics = (mg.get("metrics") or {}) if isinstance(mg.get("metrics"), dict) else {}
 
+    start_time = time.perf_counter()
     result = await llm_service.invoke_structured(
         build_query_messages(
             context_json=state.get("serialized_context") or "",
@@ -106,6 +219,29 @@ async def reason_node(state: AgentState, *, llm_service: LLMService) -> dict[str
             manufacturer_sources=_format_sources(evidence),
         )
     )
+    latency_ms = (time.perf_counter() - start_time) * 1000
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.TOOL_COMPLETED,
+        status=WorkflowStatus.SUCCESS,
+        message=f"LLM reasoning completed (provider: {result.provider}, model: {result.model})",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=state.get("agent_run_id") or str(uuid4()),
+        duration_ms=latency_ms,
+        metadata=sanitize_metadata(
+            {
+                "provider": result.provider,
+                "model": result.model,
+                "fallback_used": result.fallback_used,
+                "input_tokens": result.input_tokens,
+                "output_tokens": result.output_tokens,
+                "attempts": result.attempts,
+                "evidence_count": len(evidence),
+            }
+        ),
+    )
+
     return {
         "reasoning": json.loads(result.content),
         "execution_metadata": {
@@ -149,7 +285,19 @@ async def validate_node(state: AgentState) -> dict[str, Any]:
     """Validate the reasoning payload, ground its evidence, clamp severity/confidence."""
     reasoning = state.get("reasoning")
     if not isinstance(reasoning, dict):
+        # The error event is published once at the ``AgentService._run``
+        # boundary; this node only raises so there is a single honest
+        # AGENT_ERROR per failed run.
         raise GraphExecutionError("Agent workflow produced no reasoning content")
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.RESPONSE_GENERATED,
+        status=WorkflowStatus.SUCCESS,
+        message="Reasoning validated and response generated",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=state.get("agent_run_id") or str(uuid4()),
+    )
 
     content = _validated_content(reasoning, state)
     final = DiagnosisResponse(
@@ -169,6 +317,17 @@ async def validate_node(state: AgentState) -> dict[str, Any]:
 
 async def persist_node(state: AgentState, *, repository: Any, session: Any) -> dict[str, Any]:
     """Persist the validated diagnosis and attach its record id to the response."""
+    correlation_id = state.get("agent_run_id") or str(uuid4())
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.AGENT_COMPLETED,
+        status=WorkflowStatus.SUCCESS,
+        message=f"Agent workflow completed for vehicle {state['vehicle_id']}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+    )
+
     final: dict[str, Any] = state["final_response"]
     meta: dict[str, Any] = state.get("execution_metadata") or {}
 
@@ -199,6 +358,20 @@ async def persist_node(state: AgentState, *, repository: Any, session: Any) -> d
         ),
     )
     created = await repository.create(record)
+
+    await publish_workflow_event(
+        workflow=WorkflowType.AGENT,
+        stage=WorkflowStage.AGENT_COMPLETED,
+        status=WorkflowStatus.SUCCESS,
+        message=f"Diagnosis persisted with id {created.id}",
+        vehicle_id=str(state["vehicle_id"]),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "diagnosis_id": str(created.id),
+            }
+        ),
+    )
 
     final_with_id = dict(record.diagnosis)
     final_with_id["id"] = str(created.id)
@@ -310,7 +483,6 @@ def _validate_manufacturer(
 
 
 def _to_manufacturer_evidence(item: dict[str, Any], max_chars: int) -> Any:
-    from app.agent.schemas import ManufacturerEvidence
 
     content = item.get("content") or ""
     if len(content) > max_chars:

@@ -9,6 +9,7 @@ import {
   Car,
   CirclePlay,
   Gauge,
+  GitBranch,
   LayoutDashboard,
   ShieldCheck,
   Sparkles,
@@ -46,6 +47,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: "Start and stop per-vehicle data simulators",
   },
   {
+    href: "/workflow",
+    label: "Workflow Monitor",
+    icon: GitBranch,
+    description: "Real-time observability of system pipelines",
+  },
+  {
     href: "/rag",
     label: "Manufacturer Guidance",
     icon: BookOpen,
@@ -61,7 +68,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 export const ADMIN_NAV_ITEM: NavItem = {
   href: "/admin/rag",
-  label: "Admin · RAG corpus",
+  label: "Admin A� RAG corpus",
   icon: ShieldCheck,
   description: "Corpus health and document management",
   adminOnly: true,
@@ -81,6 +88,7 @@ function isActive(pathname: string, href: string): boolean {
   if (href === "/vehicles") {
     return pathname === "/vehicles" || pathname.startsWith("/vehicles/");
   }
+  if (href === "/workflow") return pathname === "/workflow";
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

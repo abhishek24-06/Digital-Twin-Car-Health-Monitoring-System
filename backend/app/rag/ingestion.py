@@ -16,7 +16,7 @@ Guarantees
   not accumulate garbage.
 * **Failure-state preservation:** any mid-pipeline failure marks the version
   ``failed`` with the error message and leaves the partial rows visible to
-  diagnostics — nothing is silently half-written as ``completed``.
+  diagnostics �?" nothing is silently half-written as ``completed``.
 * **No silent fallbacks:** ``.pdf`` (and other Docling types) go through
   Docling and fail loudly if the parser is unavailable; unsupported extensions
   are reported as failures, not guessed.
@@ -24,6 +24,7 @@ Guarantees
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,13 @@ from app.rag.parser.base import sha256_hex
 from app.rag.parser.docling import get_parser_for
 from app.rag.repository import ChunkRow, RagRepository
 from app.rag.schemas import VehicleScope
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    sanitize_metadata,
+)
+from app.services.workflow_event_bus import publish_workflow_event
 
 
 @dataclass
@@ -54,6 +62,7 @@ class IngestionReport:
     embedding_dimension: int = 0
     content_hash: str = ""
     error: str | None = None
+    correlation_id: str | None = None
 
 
 class IngestionService:
@@ -117,12 +126,44 @@ class IngestionService:
             )
             return report
 
+        correlation_id = f"ingest-{canonical_source}-{int(time.time())}"
+        report.correlation_id = correlation_id
+
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.DOCUMENT_UPLOAD_STARTED,
+            status=WorkflowStatus.STARTED,
+            message=f"Document ingestion started: {path.name}",
+            document_id=None,
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "filename": path.name,
+                    "size_bytes": path.stat().st_size,
+                    "canonical_source": canonical_source,
+                }
+            ),
+        )
+
         try:
             parser = get_parser_for(path)
             parse_result = parser.parse(path)
         except Exception as exc:  # noqa: BLE001 - parser is downstream, report it
             report.error = f"parse failed ({exc.__class__.__name__}): {exc}"
             report.parser_name = getattr(parser, "name", "?") if "parser" in locals() else "?"
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.DOCUMENT_PARSE_STARTED,
+                status=WorkflowStatus.ERROR,
+                message=f"Document parse failed: {exc}",
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "filename": path.name,
+                        "error": str(exc),
+                    }
+                ),
+            )
             return report
 
         report.parser_name = getattr(parser, "name", "?")
@@ -132,6 +173,75 @@ class IngestionService:
         if not text:
             report.error = "empty canonical text; nothing to index"
             return report
+
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.DOCUMENT_RECEIVED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Document received: {path.name}",
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "filename": path.name,
+                    "size_bytes": path.stat().st_size,
+                }
+            ),
+        )
+
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.DOCUMENT_PARSE_STARTED,
+            status=WorkflowStatus.RUNNING,
+            message=f"Parsing document: {path.name}",
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "parser": report.parser_name,
+                }
+            ),
+        )
+
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.DOCUMENT_PARSED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Document parsed: {path.name}",
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "parser": report.parser_name,
+                    "pages": parse_result.page_count,
+                    "char_count": len(text),
+                }
+            ),
+        )
+
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.TEXT_EXTRACTED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Text extracted: {len(text)} characters",
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "char_count": len(text),
+                }
+            ),
+        )
+
+        sections = len(parse_result.pages) if parse_result.pages else 0
+        await publish_workflow_event(
+            workflow=WorkflowType.RAG_INGESTION,
+            stage=WorkflowStage.SECTIONS_DETECTED,
+            status=WorkflowStatus.SUCCESS,
+            message=f"Sections detected: {sections}",
+            correlation_id=correlation_id,
+            metadata=sanitize_metadata(
+                {
+                    "section_count": sections,
+                }
+            ),
+        )
 
         adapter = self._embedding_adapter()
         repo = RagRepository(conn)
@@ -160,6 +270,20 @@ class IngestionService:
             report.version = version_no
             if not must_ingest:
                 report.status = "unchanged"
+                await publish_workflow_event(
+                    workflow=WorkflowType.RAG_INGESTION,
+                    stage=WorkflowStage.INGESTION_COMPLETED,
+                    status=WorkflowStatus.SUCCESS,
+                    message=f"Document unchanged, ingestion skipped: {path.name}",
+                    document_id=doc_id,
+                    correlation_id=correlation_id,
+                    metadata=sanitize_metadata(
+                        {
+                            "reason": "unchanged",
+                            "version": version_no,
+                        }
+                    ),
+                )
                 return report
 
             await repo.insert_version(
@@ -186,6 +310,21 @@ class IngestionService:
                 },
             )
 
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.CHUNKING_STARTED,
+                status=WorkflowStatus.RUNNING,
+                message=f"Chunking document: {path.name}",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "chunk_size": self.chunk_size,
+                        "chunk_overlap": self.chunk_overlap,
+                    }
+                ),
+            )
+
             chunks = chunk_by_structure(
                 parse_result.text,
                 size=self.chunk_size,
@@ -194,13 +333,87 @@ class IngestionService:
             if len(chunks) > settings.rag_max_chunks:
                 raise ValueError(f"{len(chunks)} chunks exceed the {settings.rag_max_chunks} cap")
 
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.CHUNKS_CREATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Chunks created: {len(chunks)}",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "chunk_count": len(chunks),
+                        "chunking_version": self.chunking_version,
+                    }
+                ),
+            )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.METADATA_ATTACHED,
+                status=WorkflowStatus.SUCCESS,
+                message="Metadata attached to chunks",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "scope_make": scope.make,
+                        "scope_model": scope.model,
+                        "scope_year": scope.year,
+                    }
+                ),
+            )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.EMBEDDING_STARTED,
+                status=WorkflowStatus.RUNNING,
+                message=f"Generating embeddings for {len(chunks)} chunks",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "embedding_model": adapter.name,
+                        "chunk_count": len(chunks),
+                    }
+                ),
+            )
+
             contents = [c.content for c in chunks]
+            start_time = time.perf_counter()
             vectors = adapter.encode(contents, normalize=True)
+            duration_ms = (time.perf_counter() - start_time) * 1000
             if getattr(vectors, "shape", (len(contents),))[1] != adapter.dimension:
                 raise ValueError(
                     f"adapter {adapter.name!r} produced {vectors.shape[1]}-dim vectors; "
                     f"expected {adapter.dimension}"
                 )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.EMBEDDINGS_GENERATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Embeddings generated for {len(chunks)} chunks",
+                duration_ms=duration_ms,
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "embedding_model": adapter.name,
+                        "dimensions": adapter.dimension,
+                        "chunk_count": len(chunks),
+                    }
+                ),
+            )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.VECTOR_STORAGE_STARTED,
+                status=WorkflowStatus.RUNNING,
+                message="Storing vectors in pgvector",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+            )
 
             await repo.delete_chunks_for_version(version_id)
             for i, chunk in enumerate(chunks):
@@ -225,11 +438,58 @@ class IngestionService:
                     vectors[i],
                 )
 
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.CHUNKS_STORED,
+                status=WorkflowStatus.SUCCESS,
+                message="Chunks stored in pgvector",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "version_id": str(version_id),
+                        "chunk_count": len(chunks),
+                    }
+                ),
+            )
+
             await repo.complete_version(version_id)
             report.status = "ingested"
             report.chunk_count = len(chunks)
             report.embedding_model = adapter.name
             report.embedding_dimension = adapter.dimension
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.INDEX_READY,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Vector index ready for document {path.name}",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "version_id": str(version_id),
+                    }
+                ),
+            )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.INGESTION_COMPLETED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Ingestion completed: {path.name} ({len(chunks)} chunks)",
+                document_id=doc_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "document_id": str(doc_id),
+                        "version": version_no,
+                        "chunk_count": len(chunks),
+                        "embedding_model": adapter.name,
+                        "embedding_dimension": adapter.dimension,
+                    }
+                ),
+            )
             return report
         except Exception as exc:  # noqa: BLE001 - report, preserve state
             msg = f"{exc.__class__.__name__}: {exc}"
@@ -240,6 +500,20 @@ class IngestionService:
                     pass
             report.error = msg
             report.status = "failed"
+            await publish_workflow_event(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.INGESTION_ERROR,
+                status=WorkflowStatus.ERROR,
+                message=f"Ingestion failed: {exc}",
+                document_id=report.document_id,
+                correlation_id=correlation_id,
+                metadata=sanitize_metadata(
+                    {
+                        "error": str(exc),
+                        "stage": "ingestion",
+                    }
+                ),
+            )
             return report
 
     @staticmethod

@@ -30,7 +30,14 @@ from app.models.user import User
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    sanitize_metadata,
+)
 from app.services.vehicle_health_service import VehicleHealthService
+from app.services.workflow_event_bus import publish_workflow_event
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +134,19 @@ class HealthMonitorService:
                 limit=self._settings.health_monitor_max_vehicles,
             )
 
+        await publish_workflow_event(
+            workflow=WorkflowType.HEALTH,
+            stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+            status=WorkflowStatus.STARTED,
+            message=f"Health monitor pass started for {len(due)} vehicles",
+            metadata=sanitize_metadata(
+                {
+                    "vehicles_considered": len(due),
+                    "cutoff_seconds": self._settings.health_monitor_min_seconds,
+                }
+            ),
+        )
+
         result = MonitorPassResult(considered=len(due))
         for vehicle_id in due:
             if not await self._evaluate(vehicle_id, result):
@@ -142,15 +162,161 @@ class HealthMonitorService:
                 result.escalated,
                 result.failed,
             )
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="Health monitor pass completed",
+                metadata=sanitize_metadata(
+                    {
+                        "considered": result.considered,
+                        "evaluated": result.evaluated,
+                        "escalated": result.escalated,
+                        "failed": result.failed,
+                    }
+                ),
+            )
         return result
 
     async def _evaluate(self, vehicle_id: UUID, result: MonitorPassResult) -> bool:
         """Analyse one vehicle. Returns False when the analysis failed."""
         try:
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.TELEMETRY_WINDOW_LOADED,
+                status=WorkflowStatus.RUNNING,
+                message=f"Loading telemetry window for vehicle {vehicle_id}",
+                vehicle_id=str(vehicle_id),
+            )
+
             async with self._session_factory() as session:
                 snapshot = await self._health_service_factory(session).analyze_vehicle(vehicle_id)
+
+            # Extract data sufficiency from context_json
+            data_sufficiency = snapshot.context_json.get("data_sufficiency", "unknown")
+            sample_count = snapshot.context_json.get("data_quality", {}).get("sample_count", 0)
+            coverage = snapshot.context_json.get("data_quality", {}).get("coverage_ratio", 0.0)
+
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.DATA_SUFFICIENCY_EVALUATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Data sufficiency: {data_sufficiency} for vehicle {vehicle_id}",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "sufficiency": data_sufficiency,
+                        "sample_count": sample_count,
+                        "coverage": coverage,
+                    }
+                ),
+            )
+
+            baselines = snapshot.context_json.get("baselines", [])
+            if baselines:
+                await publish_workflow_event(
+                    workflow=WorkflowType.HEALTH,
+                    stage=WorkflowStage.BASELINE_COMPARISON_COMPLETED,
+                    status=WorkflowStatus.SUCCESS,
+                    message=f"Baseline comparison completed for vehicle {vehicle_id} ({len(baselines)} baselines)",
+                    vehicle_id=str(vehicle_id),
+                    metadata=sanitize_metadata(
+                        {
+                            "baseline_count": len(baselines),
+                        }
+                    ),
+                )
+
+            findings = snapshot.context_json.get("findings", [])
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.RULES_EVALUATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Rules evaluated for vehicle {vehicle_id} ({len(findings)} findings)",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "findings_count": len(findings),
+                    }
+                ),
+            )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_SCORE_CALCULATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Health score calculated: {snapshot.health_score} for vehicle {vehicle_id}",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "score": snapshot.health_score,
+                        "status": snapshot.health_status,
+                    }
+                ),
+            )
+
+            if snapshot.confidence is not None:
+                await publish_workflow_event(
+                    workflow=WorkflowType.HEALTH,
+                    stage=WorkflowStage.CONFIDENCE_CALCULATED,
+                    status=WorkflowStatus.SUCCESS,
+                    message=f"Confidence calculated: {snapshot.confidence:.2f} for vehicle {vehicle_id}",
+                    vehicle_id=str(vehicle_id),
+                    metadata=sanitize_metadata(
+                        {
+                            "confidence": snapshot.confidence,
+                        }
+                    ),
+                )
+
+            provisional = snapshot.context_json.get("provisional", False)
+            provisional_rating = snapshot.context_json.get("provisional_rating")
+            if provisional and provisional_rating:
+                await publish_workflow_event(
+                    workflow=WorkflowType.HEALTH,
+                    stage=WorkflowStage.PROVISIONAL_STATUS_ASSIGNED,
+                    status=WorkflowStatus.WARNING,
+                    message=f"Provisional status assigned: {provisional_rating} for vehicle {vehicle_id}",
+                    vehicle_id=str(vehicle_id),
+                    metadata=sanitize_metadata(
+                        {
+                            "provisional_rating": provisional_rating,
+                            "provisional": True,
+                        }
+                    ),
+                )
+
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_SNAPSHOT_CREATED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Health snapshot created for vehicle {vehicle_id}: {snapshot.health_status}",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "snapshot_id": str(snapshot.id),
+                        "health_status": snapshot.health_status,
+                        "sample_count": snapshot.sample_count,
+                        "confidence": snapshot.confidence,
+                        "provisional": provisional,
+                    }
+                ),
+            )
         except Exception as exc:
             self._record_failure(result, vehicle_id, "evaluation", exc)
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+                status=WorkflowStatus.ERROR,
+                message=f"Health analysis failed for vehicle {vehicle_id}: {exc}",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "error": str(exc),
+                        "phase": "evaluation",
+                    }
+                ),
+            )
             return False
         result.evaluated += 1
         return should_escalate(snapshot.health_status)
@@ -158,10 +324,39 @@ class HealthMonitorService:
     async def _escalate(self, vehicle_id: UUID, result: MonitorPassResult) -> bool:
         """Run the diagnosis for one critical vehicle. Returns False on failure."""
         try:
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+                status=WorkflowStatus.RUNNING,
+                message=f"Escalating critical vehicle {vehicle_id} to agent",
+                vehicle_id=str(vehicle_id),
+            )
+
             async with self._session_factory() as session:
                 await self._agent_service_factory(session).run_critical_event(vehicle_id, user=None)
+
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message=f"Critical vehicle {vehicle_id} escalated to agent successfully",
+                vehicle_id=str(vehicle_id),
+            )
         except Exception as exc:
             self._record_failure(result, vehicle_id, "escalation", exc)
+            await publish_workflow_event(
+                workflow=WorkflowType.HEALTH,
+                stage=WorkflowStage.HEALTH_ANALYSIS_STARTED,
+                status=WorkflowStatus.ERROR,
+                message=f"Escalation failed for vehicle {vehicle_id}: {exc}",
+                vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "error": str(exc),
+                        "phase": "escalation",
+                    }
+                ),
+            )
             return False
         return True
 

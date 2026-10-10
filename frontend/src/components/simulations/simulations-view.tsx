@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { CirclePlay, Play, RotateCw, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,6 +12,9 @@ import { SelectMenu, type SelectOption } from "@/components/ui/select-menu";
 import { EmptyState, ErrorState, InlineAlert } from "@/components/states/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
+import { ContextualPipeline } from "@/components/workflow/contextual-pipeline";
+import { useWorkflowSlice } from "@/components/workflow/workflow-stream-provider";
+import { workflowApi } from "@/services/workflow";
 import { useSimulations } from "@/hooks/use-simulations";
 import { useVehicles } from "@/hooks/use-vehicle-data";
 import {
@@ -106,7 +110,7 @@ export function SimulationsView() {
       ) : null}
 
       {isPending ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 3 }, (_, index) => (
             <Skeleton key={index} className="h-56 rounded-xl" />
           ))}
@@ -125,7 +129,7 @@ export function SimulationsView() {
           }
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2">
           {vehicles?.map((vehicle) => (
             <SimulationCard
               key={vehicle.id}
@@ -170,6 +174,21 @@ function SimulationCard({
     state === "running" || state === "starting" || state === "stopping" || state === "degraded";
   const activeMutation =
     startSim.isPending || restartSim.isPending || stopSim.isPending;
+
+  // Live workflow observability, scoped to this card's vehicle. The pipeline is
+  // revealed only once the vehicle has real activity; before that we show a
+  // calm "Ready" affordance instead of a fabricated flow.
+  const { events: vehicleEvents } = useWorkflowSlice({ vehicleId: vehicle.id });
+  const workflowStateQuery = useQuery({
+    queryKey: ["workflow-state", vehicle.id],
+    queryFn: () => workflowApi.getState({ vehicle_id: vehicle.id }),
+    refetchInterval: 5000,
+  });
+  const derivedState = workflowStateQuery.data?.items[0] ?? null;
+  const hasActivity =
+    state !== "stopped" ||
+    vehicleEvents.length > 0 ||
+    (derivedState?.stages.length ?? 0) > 0;
 
   const run = async (mutation: () => Promise<unknown>) => {
     setActionError(null);
@@ -306,6 +325,21 @@ function SimulationCard({
           <Square aria-hidden />
           Stop
         </Button>
+      </div>
+
+      <div className="border-t border-line pt-3">
+        {hasActivity ? (
+          <ContextualPipeline
+            id="telemetry"
+            vehicleId={vehicle.id}
+            derivedState={derivedState}
+            hideWhenEmpty={false}
+          />
+        ) : (
+          <p className="text-xs text-ink-muted" data-testid="simulation-ready">
+            Ready — start the simulator to observe the telemetry flow.
+          </p>
+        )}
       </div>
     </Card>
   );

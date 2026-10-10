@@ -58,3 +58,4 @@ class SimulationStatusResponse(BaseModel):
     started_at: datetime | None = None
     error: str | None = None
     last_telemetry_at: datetime | None = None
+    correlation_id: str | None = None

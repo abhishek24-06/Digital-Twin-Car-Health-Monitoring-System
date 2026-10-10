@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HealthSummaryPanel, formatTimestamp } from "@/components/health/health-summary-panel";
 import { HealthStatusBadge } from "@/components/health/health-visuals";
 import { FindingsList } from "@/components/health/findings-list";
+import { ContextualPipeline } from "@/components/workflow/contextual-pipeline";
 import { useHealthContext } from "@/hooks/use-vehicle-data";
 import { useAnalyzeHealth } from "@/hooks/use-mutations";
 import { metricLabel, healthStatus } from "@/lib/metrics";
@@ -34,6 +35,8 @@ export function VehicleHealthView() {
         analyzeError={analyze.isError ? analyze.error : null}
         onAnalyze={(minutes) => analyze.mutate(minutes)}
       />
+
+      <ContextualPipeline id="health" vehicleId={vehicleId} hideWhenEmpty={false} />
 
       {context ? (
         <Card>

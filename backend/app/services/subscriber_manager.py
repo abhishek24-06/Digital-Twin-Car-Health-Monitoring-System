@@ -28,6 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.config import Settings, get_settings
+from app.schemas.workflow import WorkflowStage, WorkflowStatus, WorkflowType
 from app.services.simulation_manager import (
     BACKEND_DIR,
     ProcessHandle,
@@ -38,6 +39,7 @@ from app.services.simulation_manager import (
     _read_marker_owner,
     python_module_command,
 )
+from app.services.workflow_event_bus import publish_workflow_event
 
 logger = logging.getLogger(__name__)
 
@@ -130,15 +132,24 @@ class SubscriberSupervisor:
             process = self._process
             self._process = None
             self._closed = True
+        stopped = False
         if process is not None:
             await self._terminate(process)
             async with self._lock:
                 self._forget_locked()
+            stopped = True
         if self._monitor_task is not None:
             self._monitor_task.cancel()
             with suppress(asyncio.CancelledError):
                 await self._monitor_task
             self._monitor_task = None
+        if stopped:
+            await publish_workflow_event(
+                workflow=WorkflowType.SYSTEM,
+                stage=WorkflowStage.SUBSCRIBER_STOPPED,
+                status=WorkflowStatus.SUCCESS,
+                message="MQTT subscriber stopped",
+            )
 
     # ------------------------------------------------------------------ #
     # Internals                                                          #
@@ -159,6 +170,12 @@ class SubscriberSupervisor:
         self._last_error = None
         self._write_pid_file(process.pid)
         self._monitor_task = asyncio.create_task(self._supervise(), name="subscriber-supervisor")
+        await publish_workflow_event(
+            workflow=WorkflowType.SYSTEM,
+            stage=WorkflowStage.SUBSCRIBER_STARTED,
+            status=WorkflowStatus.SUCCESS,
+            message="MQTT subscriber started",
+        )
 
     async def _supervise(self) -> None:
         process = self._process
@@ -167,11 +184,23 @@ class SubscriberSupervisor:
         rc = await process.wait()
         async with self._lock:
             will_restart = self._auto_restart and not self._closed
+            expected_stop = self._closed
             self._last_error = _exit_reason(rc, self._log_file)
             self._process = None
             self._remove_pid_file()
             if will_restart:
                 self._restarts += 1
+        if expected_stop:
+            # A shutdown-initiated exit is not a failure; shutdown() reports
+            # SUBSCRIBER_STOPPED. Never claim an error for an intentional stop.
+            return
+        await publish_workflow_event(
+            workflow=WorkflowType.SYSTEM,
+            stage=WorkflowStage.SUBSCRIBER_ERROR,
+            status=WorkflowStatus.ERROR,
+            message="MQTT subscriber exited unexpectedly",
+            metadata={"exit_code": rc, "restarting": will_restart},
+        )
         if not will_restart:
             logger.warning("MQTT subscriber exited (rc=%s)", rc)
             return

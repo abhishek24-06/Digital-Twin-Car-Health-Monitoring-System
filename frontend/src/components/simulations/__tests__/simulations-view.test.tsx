@@ -3,11 +3,17 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SimulationsView } from "@/components/simulations/simulations-view";
 import { simulationsApi } from "@/services/simulations";
+import { workflowApi } from "@/services/workflow";
 import { ApiError } from "@/lib/api-error";
-import { renderWithProviders, TEST_VEHICLE } from "@/test/utils";
+import {
+  createWorkflowStreamHarness,
+  renderWithProviders,
+  TEST_VEHICLE,
+} from "@/test/utils";
 import type {
   PaginatedResponse,
   SimulationStatusResponse,
+  WorkflowEventResponse,
 } from "@/types/api";
 
 const { vehiclesMock } = vi.hoisted(() => ({ vehiclesMock: vi.fn() }));
@@ -31,6 +37,16 @@ vi.mock("@/services/simulations", () => ({
     restart: vi.fn(),
   },
 }));
+
+vi.mock("@/services/workflow", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/services/workflow")
+  >("@/services/workflow");
+  return {
+    ...actual,
+    workflowApi: { ...actual.workflowApi, getState: vi.fn() },
+  };
+});
 
 function list(vehicles: SimulationStatusResponse[]): PaginatedResponse<SimulationStatusResponse> {
   return { items: vehicles, page: 1, page_size: 100, total: vehicles.length };
@@ -74,6 +90,7 @@ beforeEach(() => {
     refetch: () => {},
   });
   vi.mocked(simulationsApi.list).mockResolvedValue(list([]));
+  vi.mocked(workflowApi.getState).mockResolvedValue({ items: [] });
 });
 
 afterEach(() => {
@@ -219,5 +236,119 @@ describe("SimulationsView", () => {
 
     await screen.findByText(/^running$/i);
     expect(screen.queryByText(UUID_RE)).toBeNull();
+  });
+});
+
+const SECOND_VEHICLE = {
+  ...TEST_VEHICLE,
+  id: "33333333-3333-4333-8333-333333333333",
+  vin: "1HGCM82633A009999",
+  make: "Toyota",
+  model: "Corolla",
+};
+
+function simulationEvent(
+  overrides: Partial<WorkflowEventResponse> = {},
+): WorkflowEventResponse {
+  return {
+    event_id: "sim-evt",
+    timestamp: "2026-01-01T00:00:01Z",
+    workflow: "simulation",
+    stage: "simulation_started",
+    status: "success",
+    message: "Simulation started",
+    vehicle_id: TEST_VEHICLE.id,
+    document_id: null,
+    correlation_id: null,
+    duration_ms: null,
+    metadata: {},
+    ...overrides,
+  };
+}
+
+describe("SimulationsView contextual telemetry pipeline", () => {
+  it("shows only a Ready affordance before the simulator starts", async () => {
+    vi.mocked(simulationsApi.list).mockResolvedValue(list([stopped()]));
+
+    renderWithProviders(<SimulationsView />);
+
+    expect(await screen.findByTestId("simulation-ready")).toBeTruthy();
+    expect(screen.queryByText("Telemetry Pipeline")).toBeNull();
+  });
+
+  it("reveals the telemetry pipeline once real activity arrives", async () => {
+    vi.mocked(simulationsApi.list).mockResolvedValue(list([stopped()]));
+    const harness = createWorkflowStreamHarness();
+
+    renderWithProviders(<SimulationsView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await screen.findByTestId("simulation-ready");
+
+    harness.latest().emit(simulationEvent({ vehicle_id: TEST_VEHICLE.id }));
+
+    expect(await screen.findByText("Telemetry Pipeline")).toBeTruthy();
+    expect(screen.queryByTestId("simulation-ready")).toBeNull();
+  });
+
+  it("renders a derived DEGRADED broker state honestly", async () => {
+    vi.mocked(simulationsApi.list).mockResolvedValue(list([running()]));
+    vi.mocked(workflowApi.getState).mockResolvedValue({
+      items: [
+        {
+          vehicle_id: TEST_VEHICLE.id,
+          simulation_status: "running",
+          stages: [
+            {
+              stage: "mqtt_broker",
+              status: "degraded",
+              observation: "derived",
+              at: null,
+              detail: "No recent telemetry flow observed",
+            },
+          ],
+          last_telemetry_at: null,
+          messages_received: 0,
+          snapshot_at: null,
+          degraded_reason: null,
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    renderWithProviders(<SimulationsView />);
+
+    expect(await screen.findByText("Degraded")).toBeTruthy();
+    expect(screen.getByText("No recent telemetry flow observed")).toBeTruthy();
+  });
+
+  it("keeps pipelines isolated per vehicle", async () => {
+    vehiclesMock.mockReturnValue({
+      data: [TEST_VEHICLE, SECOND_VEHICLE],
+      isPending: false,
+      isError: false,
+      error: null,
+      refetch: () => {},
+    });
+    vi.mocked(simulationsApi.list).mockResolvedValue(
+      list([
+        stopped(),
+        { ...stopped(), vehicle_id: SECOND_VEHICLE.id },
+      ]),
+    );
+    const harness = createWorkflowStreamHarness();
+
+    renderWithProviders(<SimulationsView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await screen.findByText("Honda Civic");
+    expect(screen.getAllByTestId("simulation-ready")).toHaveLength(2);
+
+    harness.latest().emit(simulationEvent({ vehicle_id: TEST_VEHICLE.id }));
+
+    expect(await screen.findAllByText("Telemetry Pipeline")).toHaveLength(1);
+    expect(screen.getAllByTestId("simulation-ready")).toHaveLength(1);
   });
 });

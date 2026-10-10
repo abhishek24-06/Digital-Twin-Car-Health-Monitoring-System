@@ -11,8 +11,23 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import get_settings
+from app.schemas.workflow import WorkflowStage, WorkflowStatus, WorkflowType
 from app.services.subscriber_manager import SubscriberSupervisor, _read_marker_pid
 from tests.services.test_simulation_manager import FakeProcessRunner
+
+
+def _capture(monkeypatch) -> list[dict]:
+    captured: list[dict] = []
+
+    async def capture(**kwargs) -> None:
+        captured.append(kwargs)
+
+    monkeypatch.setattr("app.services.subscriber_manager.publish_workflow_event", capture)
+    return captured
+
+
+def _stages(captured: list[dict]) -> list[WorkflowStage]:
+    return [event["stage"] for event in captured]
 
 
 def _make(
@@ -164,3 +179,52 @@ async def test_read_marker_pid_helper() -> None:
         assert _read_marker_pid(marker) == 4242
     finally:
         marker.unlink(missing_ok=True)
+
+
+async def test_ensure_running_emits_started_once(tmp_path: Path, monkeypatch) -> None:
+    captured = _capture(monkeypatch)
+    supervisor, _ = _make(tmp_path)
+    await supervisor.ensure_running()
+    await supervisor.ensure_running()  # idempotent: no second lifecycle event
+    assert _stages(captured).count(WorkflowStage.SUBSCRIBER_STARTED) == 1
+    started = next(
+        event for event in captured if event["stage"] == WorkflowStage.SUBSCRIBER_STARTED
+    )
+    assert started["workflow"] == WorkflowType.SYSTEM
+    assert started["status"] == WorkflowStatus.SUCCESS
+    assert started.get("vehicle_id") is None
+    await supervisor.shutdown()
+
+
+async def test_unexpected_exit_emits_error(tmp_path: Path, monkeypatch) -> None:
+    captured = _capture(monkeypatch)
+    supervisor, runner = _make(tmp_path)
+    await supervisor.ensure_running()
+    runner.processes[0].complete(2)
+
+    await _wait_for(lambda: WorkflowStage.SUBSCRIBER_ERROR in _stages(captured))
+    error = next(event for event in captured if event["stage"] == WorkflowStage.SUBSCRIBER_ERROR)
+    assert error["status"] == WorkflowStatus.ERROR
+    await supervisor.shutdown()
+
+
+async def test_shutdown_emits_stopped(tmp_path: Path, monkeypatch) -> None:
+    captured = _capture(monkeypatch)
+    supervisor, _ = _make(tmp_path)
+    await supervisor.ensure_running()
+    await supervisor.shutdown()
+    stopped = [event for event in captured if event["stage"] == WorkflowStage.SUBSCRIBER_STOPPED]
+    assert len(stopped) == 1
+    assert stopped[0]["status"] == WorkflowStatus.SUCCESS
+    # Idempotent second shutdown must not emit a duplicate stop.
+    await supervisor.shutdown()
+    assert _stages(captured).count(WorkflowStage.SUBSCRIBER_STOPPED) == 1
+
+
+async def test_shutdown_does_not_emit_error(tmp_path: Path, monkeypatch) -> None:
+    captured = _capture(monkeypatch)
+    supervisor, _ = _make(tmp_path)
+    await supervisor.ensure_running()
+    await supervisor.shutdown()
+    await asyncio.sleep(0.05)
+    assert WorkflowStage.SUBSCRIBER_ERROR not in _stages(captured)

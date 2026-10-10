@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import { DiagnosisPanel } from "@/components/diagnosis/diagnosis-panel";
+import { ContextualPipeline } from "@/components/workflow/contextual-pipeline";
 import { useAskAgent } from "@/hooks/use-mutations";
 import { useLatestDiagnosis } from "@/hooks/use-vehicle-data";
 
@@ -24,16 +25,23 @@ export function VehicleDiagnosisView() {
       : null;
 
   return (
-    <DiagnosisPanel
-      diagnosis={diagnosis}
-      isAsking={ask.isPending}
-      askError={askError}
-      onAsk={(question) => ask.mutate(question)}
-      suggestedQuestion={
-        diagnosis
-          ? "What should I check first based on the latest findings?"
-          : "Explain the current health of this vehicle and what I should watch."
-      }
-    />
+    <>
+      <DiagnosisPanel
+        diagnosis={diagnosis}
+        isAsking={ask.isPending}
+        askError={askError}
+        onAsk={(question) => ask.mutate(question)}
+        suggestedQuestion={
+          diagnosis
+            ? "What should I check first based on the latest findings?"
+            : "Explain the current health of this vehicle and what I should watch."
+        }
+      />
+      <ContextualPipeline
+        id="agent"
+        vehicleId={vehicleId}
+        correlationId={diagnosis?.correlation_id ?? undefined}
+      />
+    </>
   );
 }

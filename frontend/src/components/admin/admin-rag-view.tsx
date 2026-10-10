@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { AdminRagHealth } from "@/components/admin/admin-rag-health";
 import { AdminRagDocuments } from "@/components/admin/admin-rag-documents";
 import { AdminRagUploadDialog, type UploadOutcome } from "@/components/admin/admin-rag-upload";
+import { ContextualPipeline } from "@/components/workflow/contextual-pipeline";
 import { AuthenticatedShell } from "@/components/layout/app-shell";
 import { useSessionStore } from "@/lib/session-store";
 
@@ -96,6 +97,14 @@ export function AdminRagView() {
         ) : null}
 
         <AdminRagDocuments />
+
+        {lastUpload ? (
+          <ContextualPipeline
+            id="rag_ingestion"
+            documentId={lastUpload.response.id ?? undefined}
+            correlationId={lastUpload.response.correlation_id ?? undefined}
+          />
+        ) : null}
       </div>
     </AuthenticatedShell>
   );

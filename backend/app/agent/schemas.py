@@ -155,3 +155,4 @@ class DiagnosisResponse(BaseModel):
     context_timestamp: datetime | None = None
     generated_at: datetime
     execution: ExecutionMetadata = Field(default_factory=ExecutionMetadata)
+    correlation_id: str | None = None

@@ -23,23 +23,31 @@ from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.common import PaginatedResponse
 from app.schemas.simulation import SimulationStartRequest, SimulationState, SimulationStatusResponse
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    new_correlation_id,
+    sanitize_metadata,
+)
 from app.services.simulation_manager import (
     SimulationManager,
     SimulationStatus,
     get_simulation_manager,
 )
 from app.services.subscriber_manager import SubscriberSupervisor, get_subscriber_supervisor
+from app.services.telemetry_freshness import (
+    STALE_AFTER_SECONDS as _STALE_AFTER_SECONDS,
+)
+from app.services.telemetry_freshness import (
+    STARTUP_BUFFER_SECONDS as _STARTUP_BUFFER_SECONDS,
+)
 from app.services.vehicle_access import ensure_vehicle_access
 from app.services.vehicle_service import VehicleService
+from app.services.workflow_event_bus import publish_workflow_event
 
 vehicle_simulation_router = APIRouter()
 simulations_router = APIRouter()
-
-# A freshly spawned simulator gets a warm-up window before its missing feed is
-# treated as a fault; afterwards any running process whose newest persisted row
-# is older than this is "degraded" rather than healthily "running".
-_STARTUP_BUFFER_SECONDS = 25.0
-_STALE_AFTER_SECONDS = 30.0
 
 
 def _to_response(
@@ -48,6 +56,7 @@ def _to_response(
     *,
     state: SimulationState,
     error: str | None,
+    correlation_id: str | None = None,
 ) -> SimulationStatusResponse:
     return SimulationStatusResponse(
         vehicle_id=simulation.vehicle_id,
@@ -58,6 +67,7 @@ def _to_response(
         started_at=simulation.started_at,
         error=error,
         last_telemetry_at=last_telemetry_at,
+        correlation_id=correlation_id,
     )
 
 
@@ -143,13 +153,42 @@ async def start_simulation(
     user: Annotated[User, Depends(get_current_user)],
 ) -> SimulationStatusResponse:
     await ensure_vehicle_access(VehicleRepository(session), vehicle_id, user)
+
+    correlation_id = new_correlation_id("sim-api")
+    await publish_workflow_event(
+        workflow=WorkflowType.SIMULATION,
+        stage=WorkflowStage.SIMULATION_START_REQUESTED,
+        status=WorkflowStatus.STARTED,
+        message=f"Simulation start requested via API for vehicle {vehicle_id}",
+        vehicle_id=str(vehicle_id),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "scenario": payload.scenario,
+                "interval_seconds": payload.interval_seconds,
+                "seed": payload.seed,
+                "user_id": str(user.id),
+            }
+        ),
+    )
+
     simulation = await manager.start(
-        vehicle_id, payload.scenario, payload.interval_seconds, payload.seed
+        vehicle_id,
+        payload.scenario,
+        payload.interval_seconds,
+        payload.seed,
+        correlation_id=correlation_id,
     )
     last_telemetry_at = await _last_telemetry_at(session, vehicle_id)
     subscriber_running = (await subscriber.health()).running
     state, error = _derive_state(simulation, last_telemetry_at, subscriber_running)
-    return _to_response(simulation, last_telemetry_at, state=state, error=error)
+    return _to_response(
+        simulation,
+        last_telemetry_at,
+        state=state,
+        error=error,
+        correlation_id=simulation.correlation_id,
+    )
 
 
 @vehicle_simulation_router.get(
@@ -194,11 +233,33 @@ async def stop_simulation(
     user: Annotated[User, Depends(get_current_user)],
 ) -> SimulationStatusResponse:
     await ensure_vehicle_access(VehicleRepository(session), vehicle_id, user)
-    simulation = await manager.stop(vehicle_id)
+
+    correlation_id = new_correlation_id("sim-api")
+    await publish_workflow_event(
+        workflow=WorkflowType.SIMULATION,
+        stage=WorkflowStage.SIMULATION_STOP_REQUESTED,
+        status=WorkflowStatus.STARTED,
+        message=f"Simulation stop requested via API for vehicle {vehicle_id}",
+        vehicle_id=str(vehicle_id),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "user_id": str(user.id),
+            }
+        ),
+    )
+
+    simulation = await manager.stop(vehicle_id, correlation_id=correlation_id)
     last_telemetry_at = await _last_telemetry_at(session, vehicle_id)
     subscriber_running = (await subscriber.health()).running
     state, error = _derive_state(simulation, last_telemetry_at, subscriber_running)
-    return _to_response(simulation, last_telemetry_at, state=state, error=error)
+    return _to_response(
+        simulation,
+        last_telemetry_at,
+        state=state,
+        error=error,
+        correlation_id=simulation.correlation_id,
+    )
 
 
 @vehicle_simulation_router.post(
@@ -219,13 +280,42 @@ async def restart_simulation(
     user: Annotated[User, Depends(get_current_user)],
 ) -> SimulationStatusResponse:
     await ensure_vehicle_access(VehicleRepository(session), vehicle_id, user)
+
+    correlation_id = new_correlation_id("sim-api")
+    await publish_workflow_event(
+        workflow=WorkflowType.SIMULATION,
+        stage=WorkflowStage.SIMULATION_RESTART_REQUESTED,
+        status=WorkflowStatus.STARTED,
+        message=f"Simulation restart requested via API for vehicle {vehicle_id}",
+        vehicle_id=str(vehicle_id),
+        correlation_id=correlation_id,
+        metadata=sanitize_metadata(
+            {
+                "scenario": payload.scenario,
+                "interval_seconds": payload.interval_seconds,
+                "seed": payload.seed,
+                "user_id": str(user.id),
+            }
+        ),
+    )
+
     simulation = await manager.restart(
-        vehicle_id, payload.scenario, payload.interval_seconds, payload.seed
+        vehicle_id,
+        payload.scenario,
+        payload.interval_seconds,
+        payload.seed,
+        correlation_id=correlation_id,
     )
     last_telemetry_at = await _last_telemetry_at(session, vehicle_id)
     subscriber_running = (await subscriber.health()).running
     state, error = _derive_state(simulation, last_telemetry_at, subscriber_running)
-    return _to_response(simulation, last_telemetry_at, state=state, error=error)
+    return _to_response(
+        simulation,
+        last_telemetry_at,
+        state=state,
+        error=error,
+        correlation_id=simulation.correlation_id,
+    )
 
 
 @simulations_router.get(

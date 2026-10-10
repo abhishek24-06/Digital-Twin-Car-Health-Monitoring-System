@@ -32,8 +32,15 @@ from app.repositories.agent_diagnosis_repository import AgentDiagnosisRepository
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.schemas.workflow import (
+    WorkflowStage,
+    WorkflowStatus,
+    WorkflowType,
+    sanitize_metadata,
+)
 from app.services.vehicle_access import ensure_vehicle_access
 from app.services.vehicle_health_service import VehicleHealthService
+from app.services.workflow_event_bus import publish_workflow_event
 
 logger = logging.getLogger(__name__)
 
@@ -199,11 +206,35 @@ class AgentService:
             repository=self._diagnosis_repository,
             session=self._session,
         )
-        result = await graph.ainvoke(state, context=context)
+        run_id = state["agent_run_id"]
+        try:
+            result = await graph.ainvoke(state, context=context)
+        except Exception as exc:
+            # One honest error event for any graph/LLM/persist failure, then
+            # propagate -- observability never swallows a real failure.
+            await publish_workflow_event(
+                workflow=WorkflowType.AGENT,
+                stage=WorkflowStage.AGENT_ERROR,
+                status=WorkflowStatus.ERROR,
+                message=f"Agent workflow failed: {exc}",
+                vehicle_id=str(vehicle_id),
+                correlation_id=run_id,
+                metadata=sanitize_metadata({"error": str(exc)}),
+            )
+            raise
         final = result.get("final_response")
         if final is None:
+            await publish_workflow_event(
+                workflow=WorkflowType.AGENT,
+                stage=WorkflowStage.AGENT_ERROR,
+                status=WorkflowStatus.ERROR,
+                message="Agent workflow produced no response",
+                vehicle_id=str(vehicle_id),
+                correlation_id=run_id,
+                metadata=sanitize_metadata({"error": "no_final_response"}),
+            )
             raise GraphExecutionError("Agent workflow produced no response")
-        return DiagnosisResponse.model_validate(final)
+        return DiagnosisResponse.model_validate(final).model_copy(update={"correlation_id": run_id})
 
     def _graph_cache_key(self) -> tuple[Any, ...]:
         """Configuration identity for the compiled graph cache.

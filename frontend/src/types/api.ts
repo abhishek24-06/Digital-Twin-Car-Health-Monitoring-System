@@ -451,6 +451,7 @@ export interface DiagnosisResponse {
   context_timestamp: IsoDateTime | null;
   generated_at: IsoDateTime;
   execution: ExecutionMetadata;
+  correlation_id?: string | null;
 }
 
 export interface AgentDiagnosisItem {
@@ -528,6 +529,7 @@ export interface RAGSearchResult {
   available: boolean;
   reason: string;
   metrics: Record<string, unknown>;
+  correlation_id?: string | null;
 }
 
 export interface RagHealthResponse {
@@ -598,6 +600,7 @@ export interface AdminRagUploadResponse {
   parser_name: string | null;
   embedding_model: string | null;
   embedding_dimension: number | null;
+  correlation_id?: string | null;
 }
 
 export interface AdminRagUploadForm {
@@ -658,6 +661,211 @@ export interface SimulationStatusResponse {
   error: string | null;
   /** Newest telemetry row for the vehicle. */
   last_telemetry_at: IsoDateTime | null;
+}
+
+/* ---------------------------------------------------------------- */
+/* Workflow observability                                            */
+/* ---------------------------------------------------------------- */
+
+export type WorkflowType =
+  | "telemetry"
+  | "rag_ingestion"
+  | "rag_query"
+  | "health"
+  | "agent"
+  | "simulation"
+  | "system";
+
+export type WorkflowStage =
+  // Telemetry
+  | "simulator_started"
+  | "telemetry_generated"
+  | "mqtt_publish_started"
+  | "mqtt_published"
+  | "mqtt_received"
+  | "telemetry_parsed"
+  | "telemetry_validation_success"
+  | "telemetry_validation_error"
+  | "telemetry_persist_started"
+  | "telemetry_persisted"
+  | "health_analysis_started"
+  | "telemetry_window_loaded"
+  | "data_sufficiency_evaluated"
+  | "baseline_comparison_completed"
+  | "rules_evaluated"
+  | "health_score_calculated"
+  | "confidence_calculated"
+  | "provisional_status_assigned"
+  | "health_snapshot_created"
+  | "telemetry_error"
+  // Simulation
+  | "simulation_start_requested"
+  | "simulation_started"
+  | "simulation_restart_requested"
+  | "simulation_restarted"
+  | "simulation_stop_requested"
+  | "simulation_stopped"
+  | "simulation_error"
+  | "simulation_process_exit"
+  // RAG Ingestion
+  | "document_upload_started"
+  | "document_received"
+  | "document_parse_started"
+  | "document_parsed"
+  | "text_extracted"
+  | "sections_detected"
+  | "chunking_started"
+  | "chunks_created"
+  | "metadata_attached"
+  | "embedding_started"
+  | "embeddings_generated"
+  | "vector_storage_started"
+  | "chunks_stored"
+  | "index_ready"
+  | "ingestion_completed"
+  | "ingestion_error"
+  // RAG Query
+  | "query_received"
+  | "query_embedding_started"
+  | "query_embedding_completed"
+  | "vector_search_started"
+  | "vector_search_completed"
+  | "candidates_retrieved"
+  | "reranking_started"
+  | "reranking_completed"
+  | "context_assembled"
+  | "answer_generation_started"
+  | "answer_generated"
+  | "sources_attached"
+  | "rag_query_completed"
+  | "rag_query_error"
+  // Agent
+  | "agent_request_received"
+  | "supervisor_started"
+  | "supervisor_completed"
+  | "vehicle_context_loaded"
+  | "health_context_loaded"
+  | "manufacturer_context_requested"
+  | "rag_context_received"
+  | "reasoning_started"
+  | "tool_completed"
+  | "response_generated"
+  | "agent_completed"
+  | "agent_error"
+  // System
+  | "subscriber_started"
+  | "subscriber_stopped"
+  | "subscriber_error"
+  | "stream_connected"
+  | "stream_disconnected";
+
+export type WorkflowStatus =
+  | "started"
+  | "running"
+  | "success"
+  | "warning"
+  | "degraded"
+  | "skipped"
+  | "error";
+
+export interface WorkflowEvent {
+  event_id: UUID;
+  timestamp: IsoDateTime;
+  workflow: WorkflowType;
+  stage: WorkflowStage;
+  status: WorkflowStatus;
+  message: string;
+  vehicle_id: UUID | null;
+  document_id: UUID | null;
+  correlation_id: string | null;
+  duration_ms: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface WorkflowEventResponse {
+  event_id: UUID;
+  timestamp: IsoDateTime;
+  workflow: WorkflowType;
+  stage: WorkflowStage;
+  status: WorkflowStatus;
+  message: string;
+  vehicle_id: UUID | null;
+  document_id: UUID | null;
+  correlation_id: string | null;
+  duration_ms: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface WorkflowRecentResponse {
+  items: WorkflowEventResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface WorkflowStatusResponse {
+  telemetry_pipeline_active: boolean;
+  rag_pipeline_active: boolean;
+  agent_pipeline_active: boolean;
+  subscriber_running: boolean;
+  active_simulations: number;
+  events_in_buffer: number;
+  oldest_event_ts: IsoDateTime | null;
+  newest_event_ts: IsoDateTime | null;
+}
+
+export interface WorkflowEventFilters {
+  workflow?: WorkflowType | null;
+  stage?: WorkflowStage | null;
+  status?: WorkflowStatus | null;
+  vehicle_id?: UUID | null;
+  document_id?: UUID | null;
+  correlation_id?: string | null;
+  since?: IsoDateTime | null;
+  until?: IsoDateTime | null;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Presentation-only stages of the telemetry pipeline (mirrors the backend
+ * `TelemetryStage`). These are NOT event types: `/workflow/state` reports how
+ * far a vehicle's telemetry actually flowed, derived from real process/database
+ * signals. A stage with no signal is omitted; a missing stage is rendered as
+ * "waiting" by the UI, never persisted.
+ */
+export type TelemetryStage =
+  | "simulator"
+  | "mqtt_publish"
+  | "mqtt_broker"
+  | "mqtt_subscriber"
+  | "parser"
+  | "postgres"
+  | "health_engine"
+  | "health_snapshot";
+
+export interface StageState {
+  stage: TelemetryStage;
+  status: WorkflowStatus;
+  /** Always explicit: derived state is never shown as directly observed. */
+  observation: "observed" | "derived";
+  at: IsoDateTime | null;
+  detail: string | null;
+}
+
+export interface VehicleTelemetryState {
+  vehicle_id: UUID;
+  simulation_status: string;
+  stages: StageState[];
+  last_telemetry_at: IsoDateTime | null;
+  messages_received: number;
+  snapshot_at: IsoDateTime | null;
+  degraded_reason: string | null;
+  updated_at: IsoDateTime;
+}
+
+export interface WorkflowStateResponse {
+  items: VehicleTelemetryState[];
 }
 
 /* ---------------------------------------------------------------- */

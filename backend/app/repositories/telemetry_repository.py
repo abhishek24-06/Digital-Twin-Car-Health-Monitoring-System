@@ -4,9 +4,31 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telemetry import TelemetryRecord
+
+# Columns written by ``insert_many``. ``created_at``/``updated_at`` are omitted so
+# the database server defaults apply (same as a normal ORM insert).
+_INSERT_COLUMNS = (
+    "id",
+    "vehicle_id",
+    "timestamp",
+    "rpm",
+    "speed",
+    "engine_load",
+    "coolant_temperature",
+    "oil_temperature",
+    "battery_voltage",
+    "fuel_level",
+    "intake_air_temperature",
+    "throttle_position",
+    "engine_runtime",
+    "odometer",
+    "raw_payload",
+    "source_event_id",
+)
 
 
 class TelemetryRepository:
@@ -20,6 +42,23 @@ class TelemetryRepository:
         await self._session.flush()
         await self._session.refresh(record)
         return record
+
+    async def insert_many(self, records: list[TelemetryRecord]) -> int:
+        """Persist many records in one statement, skipping duplicates.
+
+        Idempotency is preserved by the ``(vehicle_id, source_event_id)`` unique
+        index: conflicting rows are ignored rather than failing the batch
+        (``ON CONFLICT DO NOTHING``). Returns the number of rows actually
+        inserted, so callers can tell duplicates apart from new samples.
+        """
+        if not records:
+            return 0
+        values = [
+            {column: getattr(record, column) for column in _INSERT_COLUMNS} for record in records
+        ]
+        statement = pg_insert(TelemetryRecord).values(values).on_conflict_do_nothing()
+        result = await self._session.execute(statement)
+        return int(result.rowcount or 0)
 
     async def get_by_source_event(
         self, vehicle_id: UUID, source_event_id: str
@@ -112,6 +151,29 @@ class TelemetryRepository:
         )
         result = await self._session.scalars(statement)
         return list(result.all())
+
+    async def count_for_vehicle(self, vehicle_id: UUID) -> int:
+        """Number of persisted telemetry rows for a vehicle (read-only)."""
+        statement = (
+            select(func.count())
+            .select_from(TelemetryRecord)
+            .where(TelemetryRecord.vehicle_id == vehicle_id)
+        )
+        return int(await self._session.scalar(statement) or 0)
+
+    async def count_since(self, after: datetime) -> int:
+        """Number of persisted telemetry rows strictly newer than ``after``.
+
+        Read-only COUNT used by the workflow status endpoint as the "recent
+        telemetry activity" recency signal; it deliberately avoids loading
+        rows.
+        """
+        statement = (
+            select(func.count())
+            .select_from(TelemetryRecord)
+            .where(TelemetryRecord.timestamp > after)
+        )
+        return int(await self._session.scalar(statement) or 0)
 
     async def get_latest_timestamps(self, vehicle_ids: list[UUID]) -> dict[UUID, datetime]:
         """Map each vehicle id to its newest telemetry timestamp.

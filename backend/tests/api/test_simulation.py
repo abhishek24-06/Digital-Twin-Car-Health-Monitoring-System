@@ -29,6 +29,7 @@ EXPECTED_STATUS_KEYS = {
     "started_at",
     "error",
     "last_telemetry_at",
+    "correlation_id",
 }
 
 
@@ -126,6 +127,26 @@ async def test_start_default_seed(auth_client: httpx.AsyncClient, sample_vehicle
     )
     assert response.status_code == 201
     assert response.json()["seed"] == 42
+
+
+async def test_start_response_carries_shared_correlation_id(
+    auth_client: httpx.AsyncClient, sample_vehicle: dict, monkeypatch
+) -> None:
+    """The mutation response echoes the id the manager actually emitted under."""
+    captured: list[dict] = []
+
+    async def capture(**kwargs) -> None:
+        captured.append(kwargs)
+
+    monkeypatch.setattr("app.services.simulation_manager.publish_workflow_event", capture)
+    response = await auth_client.post(
+        f"/api/v1/vehicles/{sample_vehicle['id']}/simulation",
+        json={"scenario": "normal"},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["correlation_id"]
+    assert body["correlation_id"] in {event["correlation_id"] for event in captured}
 
 
 async def test_start_validation_422(auth_client: httpx.AsyncClient, sample_vehicle: dict) -> None:

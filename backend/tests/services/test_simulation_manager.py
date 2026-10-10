@@ -12,6 +12,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.core.exceptions import ConflictError
+from app.schemas.workflow import WorkflowStage, new_correlation_id
 from app.services.simulation_manager import (
     SimulationManager,
     _exit_reason,
@@ -238,6 +239,47 @@ async def test_restart_without_existing(manager) -> None:
     instance, _ = manager
     status = await instance.restart(uuid4(), "normal", 1.0)
     assert status.status == "running"
+
+
+async def test_start_publishes_one_shared_correlation_id(manager, monkeypatch) -> None:
+    """Route and manager must speak about one simulation under one id."""
+    instance, _ = manager
+    captured: list[dict] = []
+
+    async def capture(**kwargs) -> None:
+        captured.append(kwargs)
+
+    monkeypatch.setattr("app.services.simulation_manager.publish_workflow_event", capture)
+
+    vehicle_id = uuid4()
+    status = await instance.start(vehicle_id, "normal", 1.0, correlation_id="sim-shared-1")
+
+    assert captured, "expected workflow events to be published"
+    assert {event["correlation_id"] for event in captured} == {"sim-shared-1"}
+    stages = {event["stage"] for event in captured}
+    assert WorkflowStage.SIMULATION_START_REQUESTED in stages
+    assert WorkflowStage.SIMULATION_STARTED in stages
+    assert status.correlation_id == "sim-shared-1"
+
+
+async def test_start_generates_correlation_id_when_absent(manager, monkeypatch) -> None:
+    instance, _ = manager
+    captured: list[dict] = []
+
+    async def capture(**kwargs) -> None:
+        captured.append(kwargs)
+
+    monkeypatch.setattr("app.services.simulation_manager.publish_workflow_event", capture)
+
+    status = await instance.start(uuid4(), "normal", 1.0)
+    assert status.correlation_id
+    assert status.correlation_id.startswith("sim-")
+    assert {event["correlation_id"] for event in captured} == {status.correlation_id}
+
+
+def test_new_correlation_id_helper_is_shared() -> None:
+    """The manager's generated ids come from the one shared helper."""
+    assert new_correlation_id("sim").startswith("sim-")
 
 
 async def test_statuses_for(manager) -> None:

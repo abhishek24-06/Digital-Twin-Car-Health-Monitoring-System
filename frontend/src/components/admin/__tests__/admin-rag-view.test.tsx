@@ -5,6 +5,7 @@ import { AdminRagView } from "@/components/admin/admin-rag-view";
 import { adminRagApi, ragApi } from "@/services/rag";
 import { useSessionStore } from "@/lib/session-store";
 import { renderWithProviders, TEST_USER } from "@/test/utils";
+import { createWorkflowStreamHarness } from "@/test/utils";
 import type {
   AdminRagUploadResponse,
   PaginatedResponse,
@@ -13,6 +14,7 @@ import type {
   RagHealthResponse,
   RagVersionSummary,
   UserResponse,
+  WorkflowEventResponse,
 } from "@/types/api";
 
 const replace = vi.fn();
@@ -228,5 +230,142 @@ describe("AdminRagView", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("alert").length).toBeGreaterThan(0),
     );
+  });
+});
+
+function ingestionEvent(
+  overrides: Partial<WorkflowEventResponse> = {},
+): WorkflowEventResponse {
+  return {
+    event_id: "ing-evt",
+    timestamp: "2026-01-01T00:00:00Z",
+    workflow: "rag_ingestion",
+    stage: "document_upload_started",
+    status: "running",
+    message: "Uploading",
+    vehicle_id: null,
+    document_id: null,
+    correlation_id: null,
+    duration_ms: null,
+    metadata: {},
+    ...overrides,
+  };
+}
+
+async function uploadDocument(user: ReturnType<typeof userEvent.setup>) {
+  const fileInput = await screen.findByLabelText(/document to ingest/i);
+  await user.upload(
+    fileInput,
+    new File(["brake spec text"], "manual.txt", { type: "text/plain" }),
+  );
+  await user.click(screen.getByRole("button", { name: /ingest document/i }));
+  await screen.findByText(/document ingested/i);
+}
+
+describe("AdminRagView contextual ingestion pipeline", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(ragApi, "health").mockResolvedValue(HEALTH);
+    vi.spyOn(adminRagApi, "list").mockResolvedValue(DOCUMENTS);
+    vi.spyOn(adminRagApi, "get").mockResolvedValue({
+      ...DOCUMENTS.items[0],
+      versions: [VERSION],
+      latest_version: VERSION,
+    } satisfies RagDocumentDetail);
+    vi.spyOn(adminRagApi, "upload").mockResolvedValue({
+      ...UPLOAD,
+      id: "doc-9",
+      correlation_id: "ing-1",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useSessionStore.getState().setAnonymous();
+  });
+
+  it("shows no ingestion pipeline before an upload", async () => {
+    asAdmin();
+    renderWithProviders(<AdminRagView />);
+
+    await screen.findByText(/2019 Civic Service Manual/);
+    expect(screen.queryByText("RAG Ingestion Pipeline")).toBeNull();
+  });
+
+  it("reveals the ingestion pipeline scoped to the uploaded document", async () => {
+    const user = userEvent.setup();
+    asAdmin();
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<AdminRagView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await uploadDocument(user);
+
+    harness.latest().emit(
+      ingestionEvent({
+        document_id: "doc-9",
+        correlation_id: "ing-1",
+        stage: "document_upload_started",
+        status: "running",
+      }),
+    );
+    harness.latest().emit(
+      ingestionEvent({
+        event_id: "b",
+        document_id: "doc-9",
+        correlation_id: "ing-1",
+        stage: "chunks_created",
+        status: "success",
+      }),
+    );
+
+    expect(await screen.findByText("RAG Ingestion Pipeline")).toBeTruthy();
+    expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
+  });
+
+  it("ignores ingestion events for a different document", async () => {
+    const user = userEvent.setup();
+    asAdmin();
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<AdminRagView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await uploadDocument(user);
+
+    harness.latest().emit(
+      ingestionEvent({
+        document_id: "doc-other",
+        correlation_id: "ing-other",
+        stage: "ingestion_completed",
+        status: "success",
+      }),
+    );
+
+    expect(screen.queryByText("RAG Ingestion Pipeline")).toBeNull();
+  });
+
+  it("renders an ingestion error for the uploaded document", async () => {
+    const user = userEvent.setup();
+    asAdmin();
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<AdminRagView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await uploadDocument(user);
+
+    harness.latest().emit(
+      ingestionEvent({
+        document_id: "doc-9",
+        correlation_id: "ing-1",
+        stage: "ingestion_error",
+        status: "error",
+        message: "Parser failed",
+      }),
+    );
+
+    expect(await screen.findByText("Error")).toBeTruthy();
   });
 });

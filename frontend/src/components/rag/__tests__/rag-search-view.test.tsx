@@ -4,7 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { RagSearchView } from "@/components/rag/rag-search-view";
 import { ragApi } from "@/services/rag";
 import { ApiError } from "@/lib/api-error";
-import { renderWithProviders, TEST_VEHICLE } from "@/test/utils";
+import {
+  createWorkflowStreamHarness,
+  renderWithProviders,
+  TEST_VEHICLE,
+} from "@/test/utils";
+import type { WorkflowEventResponse } from "@/types/api";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
@@ -198,5 +203,104 @@ describe("RagSearchView", () => {
     renderWithProviders(<RagSearchView />);
     await userEvent.click(screen.getByRole("button", { name: /^search/i }));
     expect(search).not.toHaveBeenCalled();
+  });
+});
+
+function queryEvent(
+  overrides: Partial<WorkflowEventResponse> = {},
+): WorkflowEventResponse {
+  return {
+    event_id: "rag-evt",
+    timestamp: "2026-01-01T00:00:00Z",
+    workflow: "rag_query",
+    stage: "query_received",
+    status: "running",
+    message: "Query received",
+    vehicle_id: null,
+    document_id: null,
+    correlation_id: null,
+    duration_ms: null,
+    metadata: {},
+    ...overrides,
+  };
+}
+
+describe("RagSearchView contextual retrieval pipeline", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.restoreAllMocks());
+
+  it("reveals the retrieval pipeline scoped to the returned correlation id", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(ragApi, "search").mockResolvedValue({
+      query: "coolant leak",
+      vehicle_scope: null,
+      available: true,
+      reason: "",
+      results: [evidence({ title: "2019 Civic Service Manual" })],
+      metrics: {},
+      correlation_id: "rag-1",
+    } as SearchResult);
+
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<RagSearchView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await user.type(screen.getByLabelText(/question or phrase/i), "coolant leak");
+    await user.click(screen.getByRole("button", { name: /^search/i }));
+    await screen.findByText(/2019 Civic Service Manual/i);
+
+    harness.latest().emit(
+      queryEvent({
+        correlation_id: "rag-1",
+        stage: "query_embedding_started",
+        status: "running",
+      }),
+    );
+    // An unrelated correlation id must not leak into this query's pipeline.
+    harness.latest().emit(
+      queryEvent({
+        event_id: "other",
+        correlation_id: "rag-other",
+        stage: "vector_search_completed",
+        status: "success",
+      }),
+    );
+
+    expect(await screen.findByText("RAG Query Pipeline")).toBeTruthy();
+    expect(screen.getAllByText("Running").length).toBeGreaterThan(0);
+  });
+
+  it("shows real stages even when the result set is empty", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(ragApi, "search").mockResolvedValue({
+      query: "brake wear",
+      vehicle_scope: null,
+      available: false,
+      reason: "hybrid",
+      results: [],
+      metrics: {},
+      correlation_id: "rag-empty",
+    } as SearchResult);
+
+    const harness = createWorkflowStreamHarness();
+    renderWithProviders(<RagSearchView />, {
+      eventSourceFactory: harness.factory,
+    });
+
+    await user.type(screen.getByLabelText(/question or phrase/i), "brake wear");
+    await user.click(screen.getByRole("button", { name: /^search/i }));
+    await screen.findByText(/no passages matched/i);
+
+    harness.latest().emit(
+      queryEvent({
+        correlation_id: "rag-empty",
+        stage: "query_received",
+        status: "success",
+      }),
+    );
+
+    expect(await screen.findByText("RAG Query Pipeline")).toBeTruthy();
+    expect(screen.getAllByText("Success").length).toBeGreaterThan(0);
   });
 });

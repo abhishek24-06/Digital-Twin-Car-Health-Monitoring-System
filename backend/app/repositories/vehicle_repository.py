@@ -27,9 +27,32 @@ class VehicleRepository:
         )
         return await self._session.scalar(statement)
 
+    async def list_ids_by_owner(self, owner_user_id: UUID) -> list[UUID]:
+        """Every vehicle id owned by ``owner_user_id`` (no pagination).
+
+        Used for server-side workflow-event visibility filtering: the caller
+        must never leak another user's vehicle events, and must not pay a
+        per-event query to decide.
+        """
+        statement = select(Vehicle.id).where(Vehicle.owner_user_id == owner_user_id)
+        result = await self._session.scalars(statement)
+        return list(result)
+
     async def get_by_vin(self, vin: str) -> Vehicle | None:
         statement = select(Vehicle).where(Vehicle.vin == vin)
         return await self._session.scalar(statement)
+
+    async def existing_ids(self, vehicle_ids: set[UUID]) -> set[UUID]:
+        """The subset of ``vehicle_ids`` that actually exist (one round trip).
+
+        Used by batched ingestion so a whole batch can be validated with a
+        single query instead of one existence check per message.
+        """
+        if not vehicle_ids:
+            return set()
+        statement = select(Vehicle.id).where(Vehicle.id.in_(vehicle_ids))
+        result = await self._session.scalars(statement)
+        return set(result)
 
     async def list(self, *, page: int, page_size: int) -> tuple[list[Vehicle], int]:
         total = await self._session.scalar(select(func.count()).select_from(Vehicle))

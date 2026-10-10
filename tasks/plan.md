@@ -1,153 +1,69 @@
-# Implementation Plan: Completing the Digital Twin Platform
+# Implementation Plan: System Workflow / Live Observability
 
-Status: AUDIT COMPLETE — proceeding to implementation.
-Baseline verified on `main` @ `3d1aca2` + 5 uncommitted P0 fixes.
+## Overview
+Add a faculty-facing "System Workflow / Observability" feature that exposes the actual execution of the Digital Twin pipelines in real time. The feature will show REAL events emitted by the actual system - telemetry flow (simulator → MQTT → subscriber → PostgreSQL → health engine → snapshot), RAG ingestion (document → parse → chunk → embed → pgvector), RAG query (question → embedding → retrieval → rerank → answer), health intelligence (telemetry → window → rules → baselines → score → confidence → snapshot), and agent workflow (user query → supervisor → tools/context → reasoning → response).
 
-## 1. Capability Map
+## Architecture Decisions
 
-| Module id | Responsibility | Depends on |
-|---|---|---|
-| `automation` | Health evaluation + critical-event diagnosis run without a human clicking a button | telemetry, health, agent |
-| `security` | Password byte-length correctness, password change, auth rate limiting | auth |
-| `realtime` | Live telemetry transport (SSE) and stale/live UX states | telemetry |
-| `devtooling` | CI, migration test, cross-platform Makefile, hermetic test env | — |
-| `polish` | Metadata/docs accuracy, Swagger extension gap, graph compile cache, cookie path | — |
+1. **WorkflowEvent Model** - Pydantic model for internal event representation with fields: event_id, timestamp, workflow, stage, status, message, vehicle_id, document_id, correlation_id, duration_ms, metadata
+2. **Bounded In-Memory Event Bus** - Ring buffer (max 500 events) with async-safe publish/subscribe, non-blocking, failure of observability never fails core operations
+3. **SSE Transport** - GET /api/v1/workflow/events/stream for live events, GET /api/v1/workflow/events/recent for buffered events
+4. **Instrumentation Points** - Emit events at actual boundaries in existing pipelines (telemetry, simulation, health, rag_ingestion, rag_query, agent)
+5. **Frontend Workflow Page** - /workflow route with tabs (Overview, Telemetry, RAG Ingestion, RAG Query, Health, Agent), pipeline visualizations, live event timeline, filters
+6. **No Persistent Storage** - Events are live observability only; PostgreSQL remains source of truth
+7. **No Secrets Exposure** - Sanitize all events, never log credentials, chain-of-thought, or huge payloads
 
-Build order: `automation` → `security` → `realtime` → `devtooling` → `polish`
+## Task List
 
-Rationale: `automation` is the difference between "a real platform" and "disconnected
-demos" — telemetry flows continuously today but nothing ever evaluates it unless a human
-presses Analyze. `security` closes a known correctness bug and two hardening gaps.
-`realtime` removes polling. `devtooling` locks the gains in. `polish` is cheap accuracy.
+### Phase 1: Foundation (Backend Event Model & Bus)
+- [ ] Task 1: Create WorkflowEvent Pydantic models and enums (schemas/workflow.py)
+- [ ] Task 2: Create bounded async event bus (services/workflow_event_bus.py)
+- [ ] Task 3: Create recent events and SSE endpoints (api/routes/workflow.py)
+- [ ] Task 4: Register workflow routes in router
+- [ ] Task 5: Add workflow configuration to settings
 
-## 2. System Audit Matrix
+### Phase 2: Telemetry Pipeline Instrumentation
+- [ ] Task 6: Instrument simulator manager (simulation_started, simulation_stopped, etc.)
+- [ ] Task 7: Instrument MQTT subscriber (mqtt_received, telemetry_parsed, telemetry_persisted)
+- [ ] Task 8: Instrument health monitor (health_analysis_started, health_snapshot_created)
 
-| # | Subsystem | Status |
-|---|---|---|
-| 1 | Project foundation | IMPLEMENTED |
-| 2 | Configuration | PARTIAL (`.env.example` omits RAG keys) |
-| 3 | PostgreSQL | IMPLEMENTED (Supabase, live at head) |
-| 4 | SQLAlchemy | IMPLEMENTED |
-| 5 | Alembic | IMPLEMENTED (7 revisions, single head `d6a9b1c2e3f4`) |
-| 6 | Vehicle management | IMPLEMENTED |
-| 7 | Telemetry ingestion | IMPLEMENTED |
-| 8 | MQTT | IMPLEMENTED (sequential, no DLQ) |
-| 9 | Vehicle simulator | IMPLEMENTED (4 scenarios, seeded, monotonic fuel/odometer) |
-| 10 | Telemetry persistence | IMPLEMENTED (partial unique index, idempotent) |
-| 11 | Vehicle context engine | IMPLEMENTED |
-| 12 | Statistical analysis | IMPLEMENTED |
-| 13 | Trend analysis | IMPLEMENTED |
-| 14 | Rule/anomaly detection | IMPLEMENTED |
-| 15 | Vehicle health scoring | IMPLEMENTED (penalties 0/10/30, category cap 40) |
-| 16 | Health snapshots | IMPLEMENTED (immutable, schema-versioned) |
-| 17 | Health history | IMPLEMENTED |
-| 18 | LangGraph | IMPLEMENTED |
-| 19 | Supervisor agent | IMPLEMENTED |
-| 20 | Tool architecture | IMPLEMENTED (deterministic, no LLM SQL) |
-| 21 | LLM provider abstraction | IMPLEMENTED (OpenRouter/Groq/Mock) |
-| 22 | LLM fallback | IMPLEMENTED (correct eligibility filtering) |
-| 23 | Manufacturer documentation ingestion | IMPLEMENTED |
-| 24 | Document parsing | IMPLEMENTED (17 extensions) |
-| 25 | Chunking | IMPLEMENTED (structural-1.0.0, 800/120) |
-| 26 | Embeddings | IMPLEMENTED (bge-m3, 1024) |
-| 27 | pgvector | IMPLEMENTED (P0 fixed, unverified in Docker) |
-| 28 | Hybrid retrieval | IMPLEMENTED (alpha 0.6, 25/30/5) |
-| 29 | Reranking | IMPLEMENTED (bge-reranker-v2-m3, graceful degradation) |
-| 30 | RAG scope filtering | IMPLEMENTED |
-| 31 | Citation/evidence handling | IMPLEMENTED |
-| 32 | RAG security/prompt-injection isolation | IMPLEMENTED |
-| 33 | Diagnosis generation | IMPLEMENTED |
-| 34 | Recommendation generation | IMPLEMENTED |
-| 35 | Authentication | IMPLEMENTED |
-| 36 | JWT/access tokens | IMPLEMENTED |
-| 37 | Refresh-token rotation | IMPLEMENTED (family revocation) |
-| 38 | Password security | **BROKEN** (72 chars vs 72 bytes; no change endpoint) |
-| 39 | User management | PARTIAL (no password change) |
-| 40 | Vehicle ownership | IMPLEMENTED |
-| 41 | Authorization/IDOR protection | IMPLEMENTED |
-| 42 | API contracts | IMPLEMENTED (23 paths / 30 ops) |
-| 43 | Error handling | IMPLEMENTED (21 handlers) |
-| 44 | Logging | IMPLEMENTED |
-| 45 | Security | **PARTIAL** (no rate limiting) |
-| 46 | Tests | IMPLEMENTED (381 pass / 10 skip) |
-| 47 | Docker | PARTIAL (P0 fixed, daemon unavailable) |
-| 48 | CI / developer tooling | **MISSING** (no `.github`); Makefile Windows-broken |
-| 49 | Frontend | IMPLEMENTED (13 routes, 69 tests) |
-| 50 | Dashboard | IMPLEMENTED |
-| 51 | Vehicle detail view | IMPLEMENTED (5 tabs) |
-| 52 | Live telemetry | **PARTIAL** (polling only, no live transport) |
-| 53 | Health visualization | IMPLEMENTED |
-| 54 | Diagnostic interface | IMPLEMENTED |
-| 55 | RAG evidence/citations UI | IMPLEMENTED |
-| 56 | Reports | **MISSING** (no endpoint, no page) |
-| 57 | Documentation | PARTIAL (stale Phase 1 metadata, stale README) |
+### Phase 3: Simulation & RAG Instrumentation
+- [ ] Task 9: Instrument Simulation Control API (start/stop/restart events)
+- [ ] Task 10: Instrument RAG ingestion pipeline (document_upload through index_ready)
+- [ ] Task 11: Instrument RAG query pipeline (query_received through answer_generated)
+- [ ] Task 12: Instrument Agent/LangGraph workflow (agent_request through agent_completed)
 
-Cross-cutting gaps not in the numbered list:
+### Phase 4: Frontend API & Hooks
+- [ ] Task 13: Create frontend workflow API service (services/workflow.ts)
+- [ ] Task 14: Create workflow hooks (hooks/use-workflow.ts)
+- [ ] Task 15: Create workflow types (types/api.ts additions)
 
-- **Automatic health evaluation after telemetry ingestion** — MISSING. `TelemetryService.create_telemetry` persists only. Nothing calls `VehicleHealthService.analyze_vehicle` outside an explicit HTTP request.
-- **Automatic critical-event agent trigger** — MISSING. `AgentService.run_critical_event` exists with cooldown deduplication but has no caller.
+### Phase 5: Frontend Workflow Page
+- [ ] Task 16: Add navigation item for Workflow Monitor
+- [ ] Task 17: Create Workflow Monitor page (app/(app)/workflow/page.tsx)
+- [ ] Task 18: Create pipeline visualization components
+- [ ] Task 19: Create live event timeline component
+- [ ] Task 20: Create filter/search/controls components
+- [ ] Task 21: Add demo mode controls
 
-## 3. Gap Analysis
+### Phase 6: Testing & Verification
+- [ ] Task 22: Backend tests (event bus, endpoints, instrumentation)
+- [ ] Task 23: Frontend tests (page, components, hooks)
+- [ ] Task 24: Run live telemetry acceptance test
+- [ ] Task 25: Run live RAG acceptance test
+- [ ] Task 26: Run live health acceptance test
+- [ ] Task 27: Run lint/typecheck
 
-### Module: automation (P1)
-
-- **Current state:** simulator publishes every second; MQTT persists every record; health snapshots are only created when a human POSTs `/health/analyze`. Agent critical-event endpoint exists but has no caller.
-- **Expected behavior:** the platform evaluates health on its own as telemetry arrives, and escalates to the diagnostic agent when an evaluation is critical.
-- **Missing:** a scheduler that selects vehicles with telemetry newer than their latest snapshot, runs `VehicleHealthService.analyze_vehicle`, and triggers `AgentService.run_critical_event` on critical/invalid states.
-- **Affected files:** new `app/services/health_monitor.py`, `app/core/config.py` (knobs), `app/main.py` (lifespan), new repository query.
-- **Dependencies:** existing `VehicleHealthService`, `AgentService`, `HealthSnapshotRepository`.
-- **Tests required:** selection/throttle logic, critical escalation, disabled mode, no-op when up to date.
-- **Risks:** unbounded work, blocking the event loop, running against a vehicle with no telemetry, LLM cost from repeated triggers (mitigated by existing cooldown).
-- **Order:** first.
-
-### Module: security (P1)
-
-- **Current state:** `max_length=72` on *characters*; bcrypt enforces 72 *bytes*. Registration returns 500 for 37-72 char non-ASCII passwords; those accounts can never log in. No password change endpoint. No rate limiting.
-- **Expected behavior:** consistent byte-length contract; users can change their own password; auth endpoints are metered.
-- **Affected files:** `app/schemas/auth.py`, `app/core/security.py`, `app/services/auth_service.py`, `app/api/routes/auth.py`, `app/main.py`.
-- **Tests required:** 72-byte ASCII boundary, non-ASCII rejection as 422, change-password success/incorrect-current, rate-limit responses.
-- **Order:** second.
-
-### Module: realtime (P2)
-
-- **Current state:** frontend polls `/vehicles/{id}/telemetry` on a timer. No WebSocket/SSE anywhere in the backend.
-- **Expected behavior:** live telemetry with connection state, last-received timestamp, stale detection; no fake frontend timers generating data.
-- **Affected files:** new `app/api/routes/live.py`, `app/api/router.py`, frontend hook/component.
-- **Risks:** per-connection DB load; must stay behind the existing session/auth dependency.
-- **Order:** third.
-
-### Module: devtooling (P2)
-
-- **Current state:** no `.github/`; Makefile hardcodes `.venv/bin/` which does not exist on Windows; tests rely on ambient `AUTH_ACCESS_TOKEN_MINUTES`.
-- **Expected behavior:** CI runs lint/typecheck/tests plus a real `alembic upgrade head` against pgvector; `make test` works on Windows.
-- **Affected files:** new `.github/workflows/ci.yml`, `backend/Makefile`, `tests/conftest.py`.
-- **Order:** fourth.
-
-### Module: polish (P3)
-
-- Stale `description` in `main.py` ("Phase 1"); stale `backend/README.md` registration contract; `.env.example` missing `RAG_*`; Swagger upload help missing `.odt/.ods/.odp/.epub`; per-request LangGraph compile; frontend dead `/api/session/logout` string and cookie path mismatch.
-- **Order:** fifth.
-
-### Not implemented (explicitly out of scope)
-
-**Reports.** No report endpoint or page exists, and reports are not in the required frontend IA (items 1-17). The brief makes reports conditional ("if report generation is part of the intended final system"). Rather than invent an unrequested surface, this is recorded as remaining debt. Say so honestly in the final report.
-
-## 4. Task List
-
-See `tasks/todo.md`.
-
-## 5. Risks and Mitigations
-
+## Risks and Mitigations
 | Risk | Impact | Mitigation |
-|---|---|---|
-| Automation triggers LLM spend on every critical evaluation | High | Reuse existing `agent_critical_event_cooldown_seconds` dedup; run agent only on `critical`/invalid status |
-| Background loop leaks or blocks shutdown | Medium | Keep task handle, cancel in lifespan teardown, catch per-vehicle exceptions |
-| Rate limiter breaks test suite | Medium | Disable by default in `test` env; opt-in knob |
-| SSE endpoint bypasses auth | High | Reuse `get_current_user` dependency; ownership check before streaming |
-| New tests hit live Supabase | Critical | Existing conftest guard already refuses hosts containing `supabase`/`pooler` |
-| Regression against 381-test baseline | High | Run full suite after every module; never weaken a test |
+|------|--------|------------|
+| Event bus blocks core operations | High | Non-blocking publish, fire-and-forget with bounded buffer |
+| Secrets leaked in events | High | Sanitize all metadata, never include raw payloads |
+| Chain-of-thought exposed | High | Agent events only show node names and high-level outcomes |
+| SSE connection leaks | Medium | Proper cleanup on disconnect, bounded subscriber count |
+| Performance impact | Medium | Lightweight event publishing, no await on delivery |
 
-## 6. Open Questions Resolved
-
-- **Q: Is reports in scope?** A: No — not required by the acceptance flow or the IA list; recorded as debt.
-- **Q: Should automation call the LLM every tick?** A: No — cooldown is already implemented in `AgentService._deduplicated_prior`.
+## Open Questions
+- Should we add a persistent workflow_events table for historical queries? (Spec says prefer NOT)
+- What correlation_id strategy for telemetry (simulation run ID)?
+- Demo mode: should it auto-trigger operations or just guide manual steps?

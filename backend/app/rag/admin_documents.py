@@ -278,4 +278,5 @@ def _to_upload_response(
         parser_name=report.parser_name,
         embedding_model=report.embedding_model,
         embedding_dimension=report.embedding_dimension,
+        correlation_id=report.correlation_id,
     )

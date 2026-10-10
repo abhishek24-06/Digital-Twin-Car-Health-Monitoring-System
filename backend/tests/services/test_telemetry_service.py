@@ -221,3 +221,95 @@ async def test_integrity_error_backstop_returns_existing(
             session, TelemetryRepository(session), VehicleRepository(session)
         ).list_vehicle_telemetry(existing_vehicle, page=1, page_size=10)
         assert total == 1
+
+
+async def test_ingest_batch_persists_every_row(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    now = datetime.now(UTC)
+    items = [
+        (
+            existing_vehicle,
+            TelemetryCreate(timestamp=now, rpm=float(i), source_event_id=f"batch-{i}"),
+        )
+        for i in range(50)
+    ]
+
+    result = await service.ingest_batch(items)
+
+    assert result.submitted == 50
+    assert result.inserted == 50
+    assert result.duplicates == 0
+    assert result.unknown_vehicle_ids == set()
+    _, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=100)
+    assert total == 50
+
+
+async def test_ingest_batch_is_idempotent_by_source_event(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    now = datetime.now(UTC)
+    item = (
+        existing_vehicle,
+        TelemetryCreate(timestamp=now, rpm=1.0, source_event_id="duplicate"),
+    )
+
+    result = await service.ingest_batch([item, item, item])
+
+    assert result.submitted == 3
+    assert result.inserted == 1
+    assert result.duplicates == 2
+    _, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=100)
+    assert total == 1
+
+
+async def test_ingest_batch_skips_unknown_vehicle_without_aborting(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    unknown = uuid4()
+    now = datetime.now(UTC)
+
+    result = await service.ingest_batch(
+        [
+            (
+                existing_vehicle,
+                TelemetryCreate(timestamp=now, rpm=2.0, source_event_id="known"),
+            ),
+            (
+                unknown,
+                TelemetryCreate(timestamp=now, rpm=3.0, source_event_id="orphan"),
+            ),
+        ]
+    )
+
+    assert result.inserted == 1
+    assert result.unknown_vehicle_ids == {unknown}
+    _, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=100)
+    assert total == 1
+
+
+async def test_ingest_batch_timestamps_are_immediately_queryable(
+    service: TelemetryService, session: AsyncSession, existing_vehicle: UUID
+) -> None:
+    """Ingestion-to-query consistency: a freshly batch-written sample inside the
+    health window must be visible to the window query the health engine uses."""
+    now = datetime.now(UTC)
+    timestamp = now - timedelta(seconds=1)
+    await service.ingest_batch(
+        [
+            (
+                existing_vehicle,
+                TelemetryCreate(timestamp=timestamp, rpm=float(i), source_event_id=f"w-{i}"),
+            )
+            for i in range(5)
+        ]
+    )
+
+    records = await TelemetryRepository(session).get_recent_telemetry(
+        existing_vehicle,
+        start_time=now - timedelta(minutes=15),
+        end_time=now,
+    )
+
+    assert len(records) == 5
+    assert all(record.timestamp == timestamp for record in records)

@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Activity, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { NavLinks } from "@/components/layout/nav-items";
 import { VehicleSelector } from "@/components/layout/vehicle-selector";
 import { ThemeToggle, UserMenu } from "@/components/layout/user-menu";
+import { WorkflowStreamProvider } from "@/components/workflow/workflow-stream-provider";
 import { Button } from "@/components/ui/button";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { ErrorState } from "@/components/states/feedback";
@@ -21,10 +23,18 @@ import { cn } from "@/lib/utils";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { status } = useAuthGuard();
+  const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   const closeMobileNav = React.useCallback(() => setMobileNavOpen(false), []);
+
+  // Simulation Control drives one simulator per vehicle and always shows every
+  // vehicle, so the single-vehicle header selector has no effect there. Hide it
+  // on that route only; every other page keeps the global selector.
+  const showVehicleSelector = !(
+    pathname === "/simulations" || Boolean(pathname?.startsWith("/simulations/"))
+  );
 
   // Escape closes the drawer; body scroll is locked while it is open.
   React.useEffect(() => {
@@ -44,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <AppShellSkeleton />;
   }
 
-  return (
+  const shell = (
     <div className="min-h-dvh bg-canvas">
       {/* Desktop sidebar ------------------------------------------------ */}
       <aside
@@ -151,12 +161,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu aria-hidden />
           </Button>
 
-          <div className="hidden sm:block">
-            <VehicleSelector />
-          </div>
-          <div className="sm:hidden">
-            <VehicleSelector compact />
-          </div>
+          {showVehicleSelector ? (
+            <>
+              <div className="hidden sm:block">
+                <VehicleSelector />
+              </div>
+              <div className="sm:hidden">
+                <VehicleSelector compact />
+              </div>
+            </>
+          ) : null}
 
           <div className="ml-auto flex items-center gap-1.5">
             <ThemeToggle />
@@ -179,6 +193,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+
+  if (status !== "authenticated") return shell;
+
+  return <WorkflowStreamProvider>{shell}</WorkflowStreamProvider>;
 }
 
 function AppShellSkeleton() {
