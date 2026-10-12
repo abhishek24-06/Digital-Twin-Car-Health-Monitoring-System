@@ -214,3 +214,46 @@ async def test_concurrent_publish_subscribe(event_bus: WorkflowEventBus):
     received = await sub_task
     # Should receive all 20
     assert received == 20
+
+
+async def test_persister_receives_published_events(
+    event_bus: WorkflowEventBus, sample_event: WorkflowEvent
+) -> None:
+    """An installed persistence hook receives published events (P2-2)."""
+    persisted: list = []
+
+    async def persister(events) -> None:
+        persisted.extend(events)
+
+    event_bus.set_persister(persister)
+    assert event_bus.persistence_enabled is True
+
+    await event_bus.publish(sample_event)
+    # The hook is fire-and-forget; yield so the scheduled task runs.
+    await asyncio.sleep(0.01)
+
+    assert [event.event_id for event in persisted] == [sample_event.event_id]
+
+
+async def test_persister_failure_does_not_break_publish(
+    event_bus: WorkflowEventBus, sample_event: WorkflowEvent
+) -> None:
+    """A failing persistence hook must never affect the live buffer."""
+
+    async def exploding(events) -> None:
+        raise RuntimeError("boom")
+
+    event_bus.set_persister(exploding)
+    await event_bus.publish(sample_event)  # Must not raise.
+    await asyncio.sleep(0.01)
+
+    events = await event_bus.get_recent(limit=10)
+    assert len(events) == 1
+
+
+async def test_persistence_disabled_by_default(
+    event_bus: WorkflowEventBus, sample_event: WorkflowEvent
+) -> None:
+    assert event_bus.persistence_enabled is False
+    await event_bus.publish(sample_event)
+    assert len(await event_bus.get_recent(limit=10)) == 1

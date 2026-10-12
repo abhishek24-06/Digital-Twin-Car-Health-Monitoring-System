@@ -24,6 +24,9 @@ class TelemetryCreate(BaseModel):
     odometer: float | None = Field(default=None, ge=0)
     raw_payload: dict[str, Any] | None = None
     source_event_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # Client-declared simulator-run provenance (optional). When absent the row
+    # is persisted with NULL: the backend never invents a run identity.
+    simulation_run_id: UUID | None = None
 
 
 class TelemetryResponse(BaseModel):
@@ -43,6 +46,7 @@ class TelemetryResponse(BaseModel):
     odometer: float | None
     raw_payload: dict[str, Any] | None
     source_event_id: str | None
+    simulation_run_id: UUID | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

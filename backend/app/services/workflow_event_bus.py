@@ -17,12 +17,18 @@ import asyncio
 import logging
 import time
 from collections import deque
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from app.schemas.workflow import WorkflowEvent, WorkflowStage, WorkflowStatus, WorkflowType
 
 logger = logging.getLogger(__name__)
+
+# Optional durable-persistence hook. The bus never imports the persistence
+# layer; the app wires a callable in at startup. A hook that raises is logged
+# and ignored so observability history can never break a live publish.
+PersistHook = Callable[[Sequence[WorkflowEvent]], Awaitable[Any]]
 
 
 @dataclass
@@ -55,6 +61,20 @@ class WorkflowEventBus:
         self._subscriber_counter = 0
         self._lock = asyncio.Lock()
         self._closed = False
+        self._persister: PersistHook | None = None
+        self._persist_tasks: set[asyncio.Task[None]] = set()
+
+    def set_persister(self, persister: PersistHook | None) -> None:
+        """Install (or clear) the durable-persistence hook.
+
+        Called once at application startup. The hook runs fire-and-forget after
+        an event is buffered, so it never delays a publisher.
+        """
+        self._persister = persister
+
+    @property
+    def persistence_enabled(self) -> bool:
+        return self._persister is not None
 
     @property
     def capacity(self) -> int:
@@ -95,6 +115,31 @@ class WorkflowEventBus:
             # Clean up dead subscribers
             for sub_id in dead_subscribers:
                 self._subscribers.pop(sub_id, None)
+
+        # Durable audit copy, outside the lock and fire-and-forget: the live
+        # feed must never wait on (or fail because of) persistence.
+        self._schedule_persist(event)
+
+    def _schedule_persist(self, event: WorkflowEvent) -> None:
+        persister = self._persister
+        if persister is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop (e.g. a synchronous publish outside a request):
+            # the live buffer already holds the event; skip the audit copy.
+            return
+        task = loop.create_task(self._run_persist(persister, event))
+        self._persist_tasks.add(task)
+        task.add_done_callback(self._persist_tasks.discard)
+
+    @staticmethod
+    async def _run_persist(persister: PersistHook, event: WorkflowEvent) -> None:
+        try:
+            await persister([event])
+        except Exception:  # noqa: BLE001 - observability must never break callers
+            logger.warning("workflow event persistence hook failed", exc_info=True)
 
     async def subscribe(self) -> tuple[int, asyncio.Queue[WorkflowEvent]]:
         """Create a new subscription.

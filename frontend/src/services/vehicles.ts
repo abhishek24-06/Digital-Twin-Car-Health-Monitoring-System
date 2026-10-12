@@ -5,6 +5,9 @@ import type {
   DiagnosisResponse,
   HealthContextResponse,
   HealthSnapshotItem,
+  HistoricalAnalyticsResponse,
+  HistoricalRangePreset,
+  LiveHealthStatusResponse,
   PaginatedResponse,
   TelemetryCreate,
   TelemetryResponse,
@@ -92,6 +95,44 @@ export const healthApi = {
       `/vehicles/${vehicleId}/health/history`,
       {
         query: { page: params.page ?? 1, page_size: params.pageSize ?? 20 },
+        ...(signal ? { signal } : {}),
+      },
+    ),
+};
+
+/**
+ * Live current-session health. Separate from the historical `health` routes on
+ * purpose: this reflects the *active simulator run* and never dresses an old
+ * snapshot up as a current verdict.
+ */
+export const liveHealthApi = {
+  get: (vehicleId: string, signal?: AbortSignal) =>
+    api.get<LiveHealthStatusResponse>(`/vehicles/${vehicleId}/health/live`, {
+      ...(signal ? { signal } : {}),
+    }),
+};
+
+/** Read-only historical analytics over a validated UTC-aware window. */
+export const historicalAnalyticsApi = {
+  get: (
+    vehicleId: string,
+    params: {
+      range?: HistoricalRangePreset;
+      timezone?: string;
+      startTime?: string;
+      endTime?: string;
+    } = {},
+    signal?: AbortSignal,
+  ) =>
+    api.get<HistoricalAnalyticsResponse>(
+      `/vehicles/${vehicleId}/historical-analytics`,
+      {
+        query: {
+          range: params.range ?? "24h",
+          timezone: params.timezone ?? "UTC",
+          start_time: params.startTime,
+          end_time: params.endTime,
+        },
         ...(signal ? { signal } : {}),
       },
     ),

@@ -88,6 +88,17 @@ function renderProvider(log: FakeEventSource[], children: React.ReactNode) {
 }
 
 describe("WorkflowStreamProvider", () => {
+  it("throws a clear error when a consumer renders outside the provider", () => {
+    // Deliberate misconfiguration must not be masked: the hooks throw loudly
+    // when the shared stream is genuinely missing from the tree.
+    expect(() => render(<ConnectionProbe />)).toThrow(
+      /must be used within a WorkflowStreamProvider/,
+    );
+    expect(() => render(<SliceProbe />)).toThrow(
+      /must be used within a WorkflowStreamProvider/,
+    );
+  });
+
   it("mounts exactly one EventSource", () => {
     const log: FakeEventSource[] = [];
     renderProvider(log, <SliceProbe />);

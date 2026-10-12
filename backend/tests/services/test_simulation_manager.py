@@ -123,6 +123,68 @@ async def test_start_default_seed(manager) -> None:
     assert status.seed == 42
 
 
+async def test_start_mints_run_id_in_env_and_status(manager) -> None:
+    """Every start creates a unique run identity carried to the process env."""
+    instance, runner = manager
+    vehicle_id = uuid4()
+    status = await instance.start(vehicle_id, "normal", 1.0, seed=1)
+    assert status.run_id is not None
+    cmd, env, _ = runner.spawned[0]
+    assert env["SIMULATOR_RUN_ID"] == str(status.run_id)
+    # The env value must be a real UUID, not an arbitrary label.
+    from uuid import UUID
+
+    assert UUID(env["SIMULATOR_RUN_ID"]) == status.run_id
+
+
+async def test_restart_creates_different_run_id(manager) -> None:
+    """A restart must never reuse the previous run's identity."""
+    instance, runner = manager
+    vehicle_id = uuid4()
+    first = await instance.start(vehicle_id, "normal", 1.0, seed=1)
+    second = await instance.restart(vehicle_id, "normal", 1.0, seed=2)
+    assert first.run_id is not None
+    assert second.run_id is not None
+    assert second.run_id != first.run_id
+    envs = [env for _cmd, env, _cwd in runner.spawned]
+    assert envs[0]["SIMULATOR_RUN_ID"] == str(first.run_id)
+    assert envs[1]["SIMULATOR_RUN_ID"] == str(second.run_id)
+
+
+async def test_stop_clears_active_run_id(manager) -> None:
+    """Stopping ends the active session; the run id is no longer current."""
+    instance, runner = manager
+    vehicle_id = uuid4()
+    started = await instance.start(vehicle_id, "normal", 1.0, seed=1)
+    assert started.run_id is not None
+    stopped = await instance.stop(vehicle_id)
+    assert stopped.status == "stopped"
+    assert stopped.run_id is None
+    # The historical identity still lives in the (fake) process env from spawn.
+    assert runner.spawned[0][1]["SIMULATOR_RUN_ID"] == str(started.run_id)
+
+
+async def test_start_after_error_mints_fresh_run_id(manager) -> None:
+    instance, runner = manager
+    vehicle_id = uuid4()
+    await _start(instance, vehicle_id)
+    first_run_id = (await instance.get_status(vehicle_id)).run_id
+    runner.processes[0].complete(2)
+    errored = await _wait_for_status(instance, vehicle_id, "error")
+    assert errored.run_id is None  # a dead run is no longer the active session
+    restarted = await instance.start(vehicle_id, "normal", 1.5)
+    assert restarted.run_id is not None
+    assert restarted.run_id != first_run_id
+
+
+async def test_start_no_active_run_status(manager) -> None:
+    """A vehicle with no simulator has no current run identity."""
+    instance, _ = manager
+    status = await instance.get_status(uuid4())
+    assert status.status == "stopped"
+    assert status.run_id is None
+
+
 async def test_spawn_command_uses_single_real_interpreter(manager) -> None:
     """Regression for the Windows venv launcher double-spawn.
 

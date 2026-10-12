@@ -39,20 +39,20 @@ export function HealthSummaryPanel({
     return (
       <Card className={className}>
         <CardHeader>
-          <CardTitle>Vehicle health</CardTitle>
+          <CardTitle>Vehicle health snapshot</CardTitle>
           <CardDescription>
-            No health snapshot has been generated for this vehicle yet.
+            No health report has been generated for this vehicle yet.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-line px-6 py-8 text-center sm:flex-row sm:text-left">
             <HealthScoreRing score={null} status="unknown" size={132} />
             <div className="space-y-1.5">
-              <p className="text-sm font-medium text-ink">No analysis yet</p>
+              <p className="text-sm font-medium text-ink">No report yet</p>
               <p className="max-w-sm text-xs leading-relaxed text-ink-subtle">
-                Running an analysis scores the vehicle from its recent telemetry
-                using the deterministic rule engine. It never contacts the AI
-                provider.
+                Generating a report scores the vehicle from a bounded historical
+                telemetry window using the deterministic rule engine. It is a
+                historical analysis and never contacts the AI provider.
               </p>
               <div className="pt-1">
                 <Button
@@ -61,7 +61,7 @@ export function HealthSummaryPanel({
                   onClick={() => onAnalyze(Number(windowMinutes))}
                 >
                   <PlayCircle aria-hidden />
-                  Run health analysis
+                  Generate historical report
                 </Button>
               </div>
             </div>
@@ -79,9 +79,13 @@ export function HealthSummaryPanel({
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>Vehicle health</CardTitle>
+        <CardTitle>Vehicle health snapshot</CardTitle>
         <CardDescription>
-          Deterministic rule-engine score · schema {context.context_schema_version} · engine{" "}
+          Last persisted{" "}
+          {context.analysis_scope === "current_session"
+            ? "current-session"
+            : "historical"}{" "}
+          report · schema {context.context_schema_version} · engine{" "}
           {context.rule_engine_version}
         </CardDescription>
       </CardHeader>
@@ -97,6 +101,11 @@ export function HealthSummaryPanel({
                   confidence {(context.confidence * 100).toFixed(0)}%
                 </span>
               ) : null}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs text-ink-muted">
+                {context.analysis_scope === "current_session"
+                  ? "current session"
+                  : "historical window"}
+              </span>
             </div>
 
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs sm:grid-cols-3">
@@ -133,35 +142,57 @@ export function HealthSummaryPanel({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3 border-t border-line pt-4">
-          <div className="w-full sm:w-48">
-            <label
-              htmlFor="analysis-window"
-              className="mb-1.5 block text-xs font-medium text-ink-muted"
-            >
-              Analysis window
-            </label>
-            <SelectMenu
-              value={windowMinutes}
-              options={windowOptions}
-              onChange={setWindowMinutes}
-              label="Analysis window"
-            />
-          </div>
-          <Button
-            variant="outline"
-            loading={isAnalyzing}
-            onClick={() => onAnalyze(Number(windowMinutes))}
-          >
-            <PlayCircle aria-hidden />
-            Re-run analysis
-          </Button>
+        <div className="space-y-3 border-t border-line pt-4">
           <p className="text-[0.68rem] text-ink-subtle">
-            Window{" "}
-            <span className="tabular">
-              {context.analysis_window.window_minutes} min
-            </span>{" "}
-            ending {formatTimestamp(context.analysis_window.end)}
+            <span className="font-medium text-ink-muted">This report</span>: scope{" "}
+            {context.analysis_scope === "current_session"
+              ? "current session"
+              : "historical"}{" "}
+            · window{" "}
+            <span className="tabular">{context.analysis_window.window_minutes} min</span> (
+            {formatTimestamp(context.analysis_window.start)} →{" "}
+            {formatTimestamp(context.analysis_window.end)}) · generated{" "}
+            {formatTimestamp(context.generated_at)}
+            {context.simulation_run_id ? (
+              <>
+                {" "}
+                · run{" "}
+                <span className="font-mono text-[0.68rem]">
+                  {context.simulation_run_id}
+                </span>
+              </>
+            ) : (
+              <> · no run id (legacy / mixed scope)</>
+            )}
+          </p>
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-48">
+              <label
+                htmlFor="analysis-window"
+                className="mb-1.5 block text-xs font-medium text-ink-muted"
+              >
+                Historical report window
+              </label>
+              <SelectMenu
+                value={windowMinutes}
+                options={windowOptions}
+                onChange={setWindowMinutes}
+                label="Historical report window"
+              />
+            </div>
+            <Button
+              variant="outline"
+              loading={isAnalyzing}
+              onClick={() => onAnalyze(Number(windowMinutes))}
+            >
+              <PlayCircle aria-hidden />
+              Generate historical report
+            </Button>
+          </div>
+          <p className="text-[0.62rem] text-ink-subtle">
+            The selector only affects the next generated report; the card above
+            still shows the last persisted report until you generate a new one.
           </p>
         </div>
 

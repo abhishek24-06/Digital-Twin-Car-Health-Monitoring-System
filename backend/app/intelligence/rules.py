@@ -19,6 +19,8 @@ from app.intelligence.models import (
 
 INSUFFICIENT_DATA_RULE = "INSUFFICIENT_DATA"
 LIMITED_DATA_RULE = "LIMITED_DATA"
+#: Live current-session sufficiency gate (Phase 4.2): info-level, zero penalty.
+LIVE_SUFFICIENCY_RULE = "LIVE_DATA_SUFFICIENCY"
 
 
 @dataclass(frozen=True)

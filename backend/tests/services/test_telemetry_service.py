@@ -69,6 +69,26 @@ async def test_create_telemetry_for_missing_vehicle_raises_not_found(
         await service.create_telemetry(uuid4(), telemetry_at(1))
 
 
+async def test_create_telemetry_persists_supplied_run_id(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    """The REST ingestion path persists a client-declared run identity."""
+    run_id = uuid4()
+    record = await service.create_telemetry(
+        existing_vehicle,
+        TelemetryCreate(timestamp=datetime.now(UTC), rpm=500.0, simulation_run_id=run_id),
+    )
+    assert record.simulation_run_id == run_id
+
+
+async def test_create_telemetry_without_run_id_stays_null(
+    service: TelemetryService, existing_vehicle: UUID
+) -> None:
+    """A sample with no run identity is stored as NULL -- never fabricated."""
+    record = await service.create_telemetry(existing_vehicle, telemetry_at(1))
+    assert record.simulation_run_id is None
+
+
 async def test_list_telemetry_newest_first(
     service: TelemetryService, existing_vehicle: UUID
 ) -> None:
@@ -227,10 +247,16 @@ async def test_ingest_batch_persists_every_row(
     service: TelemetryService, existing_vehicle: UUID
 ) -> None:
     now = datetime.now(UTC)
+    run_id = uuid4()
     items = [
         (
             existing_vehicle,
-            TelemetryCreate(timestamp=now, rpm=float(i), source_event_id=f"batch-{i}"),
+            TelemetryCreate(
+                timestamp=now,
+                rpm=float(i),
+                source_event_id=f"batch-{i}",
+                simulation_run_id=run_id,
+            ),
         )
         for i in range(50)
     ]
@@ -241,8 +267,9 @@ async def test_ingest_batch_persists_every_row(
     assert result.inserted == 50
     assert result.duplicates == 0
     assert result.unknown_vehicle_ids == set()
-    _, total = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=100)
-    assert total == 50
+    items, _ = await service.list_vehicle_telemetry(existing_vehicle, page=1, page_size=100)
+    assert len(items) == 50
+    assert all(item.simulation_run_id == run_id for item in items)
 
 
 async def test_ingest_batch_is_idempotent_by_source_event(
@@ -313,3 +340,39 @@ async def test_ingest_batch_timestamps_are_immediately_queryable(
 
     assert len(records) == 5
     assert all(record.timestamp == timestamp for record in records)
+
+
+async def test_get_recent_telemetry_limit_keeps_newest_rows(
+    service: TelemetryService, session: AsyncSession, existing_vehicle: UUID
+) -> None:
+    """A bounded window query must keep the newest samples, not the oldest.
+
+    Ordering ascending and applying ``LIMIT`` (the pre-fix behavior) silently
+    dropped the freshest rows -- exactly the rows a live verdict depends on.
+    """
+    now = datetime.now(UTC)
+    base = now - timedelta(seconds=10)
+    await service.ingest_batch(
+        [
+            (
+                existing_vehicle,
+                TelemetryCreate(
+                    timestamp=base + timedelta(seconds=i),
+                    rpm=float(i),
+                    source_event_id=f"limit-{i}",
+                ),
+            )
+            for i in range(10)
+        ]
+    )
+
+    records = await TelemetryRepository(session).get_recent_telemetry(
+        existing_vehicle,
+        start_time=base,
+        end_time=now,
+        limit=4,
+    )
+
+    # Newest four kept, still returned chronologically (oldest-first).
+    assert [record.rpm for record in records] == [6.0, 7.0, 8.0, 9.0]
+    assert records == sorted(records, key=lambda record: record.timestamp)

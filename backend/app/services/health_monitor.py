@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
@@ -36,6 +36,7 @@ from app.schemas.workflow import (
     WorkflowType,
     sanitize_metadata,
 )
+from app.services.alert_service import AlertService
 from app.services.vehicle_health_service import VehicleHealthService
 from app.services.workflow_event_bus import publish_workflow_event
 
@@ -48,6 +49,8 @@ class HealthEvaluator(Protocol):
     async def analyze_vehicle(
         self, vehicle_id: UUID, window_minutes: float | None = None
     ) -> HealthSnapshot: ...
+
+    async def analyze_live_vehicle(self, vehicle_id: UUID, run_id: UUID) -> HealthSnapshot: ...
 
 
 class CriticalEventEscalator(Protocol):
@@ -64,6 +67,11 @@ class CriticalEventEscalator(Protocol):
 
 HealthServiceFactory = Callable[[AsyncSession], HealthEvaluator]
 AgentServiceFactory = Callable[[AsyncSession], CriticalEventEscalator]
+AlertServiceFactory = Callable[[AsyncSession], AlertService]
+#: Resolves the *active* simulator run id for a vehicle (or None when the
+#: vehicle has no current run). The monitor only ever evaluates current-session
+#: evidence; stopped vehicles are not due for a fresh assessment.
+RunResolver = Callable[[UUID], Awaitable[UUID | None]]
 
 
 def should_escalate(health_status: str) -> bool:
@@ -112,11 +120,15 @@ class HealthMonitorService:
         settings: Settings | None = None,
         health_service_factory: HealthServiceFactory | None = None,
         agent_service_factory: AgentServiceFactory | None = None,
+        alert_service_factory: AlertServiceFactory | None = None,
+        run_resolver: RunResolver | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._settings = settings or get_settings()
         self._health_service_factory = health_service_factory or _default_health_service
         self._agent_service_factory = agent_service_factory or _default_agent_service
+        self._alert_service_factory = alert_service_factory
+        self._run_resolver = run_resolver
 
     async def run_pass(self) -> MonitorPassResult:
         """Evaluate every due vehicle once and escalate critical results.
@@ -179,23 +191,71 @@ class HealthMonitorService:
         return result
 
     async def _evaluate(self, vehicle_id: UUID, result: MonitorPassResult) -> bool:
-        """Analyse one vehicle. Returns False when the analysis failed."""
+        """Analyse the *current session* of one vehicle.
+
+        Returns False when the analysis failed or when there is no active run
+        to evaluate. A vehicle with no active simulator run is simply not due:
+        it is skipped silently (never counted as evaluated or failed) so a
+        stopped vehicle's old snapshot is never overwritten by a misleading
+        fresh-window assessment.
+        """
         try:
+            if self._run_resolver is not None:
+                run_id = await self._run_resolver(vehicle_id)
+                if run_id is None:
+                    logger.info(
+                        "health monitor: vehicle %s has no active run; skipping current-session evaluation",
+                        vehicle_id,
+                    )
+                    return False
+
             await publish_workflow_event(
                 workflow=WorkflowType.HEALTH,
                 stage=WorkflowStage.TELEMETRY_WINDOW_LOADED,
                 status=WorkflowStatus.RUNNING,
-                message=f"Loading telemetry window for vehicle {vehicle_id}",
+                message=f"Loading current-session telemetry window for vehicle {vehicle_id}",
                 vehicle_id=str(vehicle_id),
+                metadata=sanitize_metadata(
+                    {
+                        "simulation_run_id": (
+                            str(run_id) if self._run_resolver is not None else None
+                        ),
+                        "evaluation": (
+                            "live_current_run"
+                            if self._run_resolver is not None
+                            else "legacy_window"
+                        ),
+                    }
+                ),
             )
 
             async with self._session_factory() as session:
-                snapshot = await self._health_service_factory(session).analyze_vehicle(vehicle_id)
+                if self._run_resolver is not None:
+                    snapshot = await self._health_service_factory(session).analyze_live_vehicle(
+                        vehicle_id, run_id
+                    )
+                else:
+                    # Legacy monitor wiring (no run resolver): fall back to the
+                    # historical window analysis for backward compatibility.
+                    snapshot = await self._health_service_factory(session).analyze_vehicle(
+                        vehicle_id
+                    )
+
+                # Materialize persisted alerts from this evaluation. Isolated so
+                # an alert-store failure degrades alerts only: the snapshot (and
+                # the pass) still succeeds.
+                if self._alert_service_factory is not None:
+                    try:
+                        await self._alert_service_factory(session).sync_from_snapshot(snapshot)
+                    except Exception:
+                        logger.exception("health monitor: alert sync failed for %s", vehicle_id)
 
             # Extract data sufficiency from context_json
             data_sufficiency = snapshot.context_json.get("data_sufficiency", "unknown")
             sample_count = snapshot.context_json.get("data_quality", {}).get("sample_count", 0)
             coverage = snapshot.context_json.get("data_quality", {}).get("coverage_ratio", 0.0)
+            simulation_run_id = snapshot.context_json.get("simulation_run_id")
+            live_sufficiency = snapshot.context_json.get("live_sufficiency") or {}
 
             await publish_workflow_event(
                 workflow=WorkflowType.HEALTH,
@@ -208,6 +268,10 @@ class HealthMonitorService:
                         "sufficiency": data_sufficiency,
                         "sample_count": sample_count,
                         "coverage": coverage,
+                        "simulation_run_id": (
+                            str(simulation_run_id) if simulation_run_id is not None else None
+                        ),
+                        "live_policy_met": live_sufficiency.get("policy_met"),
                     }
                 ),
             )
@@ -299,6 +363,10 @@ class HealthMonitorService:
                         "sample_count": snapshot.sample_count,
                         "confidence": snapshot.confidence,
                         "provisional": provisional,
+                        "simulation_run_id": (
+                            str(simulation_run_id) if simulation_run_id is not None else None
+                        ),
+                        "live_policy_met": live_sufficiency.get("policy_met"),
                     }
                 ),
             )
@@ -319,7 +387,10 @@ class HealthMonitorService:
             )
             return False
         result.evaluated += 1
-        return should_escalate(snapshot.health_status)
+        # Escalate only on *sufficient, non-provisional* evidence: a collecting
+        # session or a stale feed must never re-trigger the diagnosis pipeline
+        # from an old snapshot dressed up as a current verdict.
+        return should_escalate(snapshot.health_status) and not provisional
 
     async def _escalate(self, vehicle_id: UUID, result: MonitorPassResult) -> bool:
         """Run the diagnosis for one critical vehicle. Returns False on failure."""

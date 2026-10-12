@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  BarChart3,
+  Bell,
   BookOpen,
   Car,
   CirclePlay,
@@ -77,10 +79,13 @@ export const ADMIN_NAV_ITEM: NavItem = {
 /** Vehicle-scoped tabs, rendered inside the vehicle workspace header. */
 export const VEHICLE_TABS = [
   { href: "", label: "Overview", icon: Gauge },
-  { href: "/health", label: "Health", icon: Activity },
+  { href: "/health", label: "Live Health", icon: Activity },
+  { href: "/simulation", label: "Simulation", icon: CirclePlay },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/telemetry", label: "Telemetry", icon: Activity },
   { href: "/diagnosis", label: "AI Diagnosis", icon: Sparkles },
   { href: "/history", label: "History", icon: Activity },
+  { href: "/alerts", label: "Alerts", icon: Bell },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {

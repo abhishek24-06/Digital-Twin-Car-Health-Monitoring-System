@@ -30,6 +30,7 @@ EXPECTED_STATUS_KEYS = {
     "error",
     "last_telemetry_at",
     "correlation_id",
+    "run_id",
 }
 
 
@@ -119,6 +120,7 @@ async def test_start_success(auth_client: httpx.AsyncClient, sample_vehicle: dic
     assert body["started_at"] is not None
     assert body["error"] is None
     assert body["last_telemetry_at"] is None
+    assert body["run_id"] is not None  # every start mints a fresh run identity
 
 
 async def test_start_default_seed(auth_client: httpx.AsyncClient, sample_vehicle: dict) -> None:

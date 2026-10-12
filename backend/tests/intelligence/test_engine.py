@@ -62,8 +62,9 @@ def test_engine_healthy_window_produces_healthy_context() -> None:
     assert context.findings == []
     assert context.data_quality.sample_count == 61
     assert context.data_quality.coverage_ratio == 1.0
-    assert context.context_schema_version == "1.1"
+    assert context.context_schema_version == "1.2"
     assert context.rule_engine_version == "1.0"
+    assert context.analysis_scope == "historical_window"
     assert len(context.statistics) == 11
     assert context.score_details.starting_score == 100.0
     assert context.data_sufficiency == "sufficient_data"
@@ -250,3 +251,129 @@ def test_engine_context_serialisable_to_json() -> None:
     assert isinstance(payload["vehicle_id"], str)
     json.dumps(payload)
     assert payload["health_status"] == "healthy"
+
+
+# --- Live current-session sufficiency gate (Phase 2) ---
+
+
+def _live_policy():
+    from app.intelligence.models import LiveSufficiencyPolicy
+
+    return LiveSufficiencyPolicy(
+        minimum_samples=30,
+        minimum_duration_seconds=30.0,
+        minimum_coverage=0.5,
+        max_sample_age_seconds=15.0,
+    )
+
+
+def test_live_sufficiency_gate_clears_with_fresh_run() -> None:
+    """A fresh steady run meets every bound: definitive, not provisional."""
+    run_id = uuid4()
+    samples = _points(_healthy_base(), count=40, start_seconds_ago=40.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(minutes=1),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+        simulation_run_id=run_id,
+        sufficiency_policy=_live_policy(),
+    )
+
+    assert context.simulation_run_id == run_id
+    assert context.live_sufficiency is not None
+    assert context.live_sufficiency.policy_met is True
+    assert context.live_sufficiency.reasons == []
+    assert context.health_status == "healthy"
+    assert context.data_sufficiency == "sufficient_data"
+    assert context.provisional is False
+    rule_ids = {f.rule_id for f in context.findings}
+    assert "LIVE_DATA_SUFFICIENCY" not in rule_ids
+
+
+def test_live_sufficiency_gate_blocks_definitive_when_samples_low() -> None:
+    """20 samples over 20s cannot claim a definitive live verdict."""
+    samples = _points(_healthy_base(), count=20, start_seconds_ago=20.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(minutes=1),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+        sufficiency_policy=_live_policy(),
+    )
+
+    assert context.live_sufficiency is not None
+    assert context.live_sufficiency.policy_met is False
+    assert context.health_status == "limited_data"
+    assert context.data_sufficiency == "limited_data"
+    assert context.provisional is True
+    rule_ids = {f.rule_id for f in context.findings}
+    assert "LIVE_DATA_SUFFICIENCY" in rule_ids
+    assert any("current-run sample" in r for r in context.live_sufficiency.reasons)
+
+
+def test_live_sufficiency_gate_blocks_when_feed_stale() -> None:
+    """Enough samples spanning enough time, but the newest is 22s old."""
+    samples = _points(_healthy_base(), count=40, start_seconds_ago=61.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(minutes=1),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+        sufficiency_policy=_live_policy(),
+    )
+
+    assert context.live_sufficiency is not None
+    assert context.live_sufficiency.policy_met is False
+    assert (
+        context.live_sufficiency.latest_sample_age_seconds
+        and context.live_sufficiency.latest_sample_age_seconds
+        > context.live_sufficiency.max_sample_age_seconds
+    )
+    assert any("old" in r for r in context.live_sufficiency.reasons)
+    assert context.health_status == "limited_data"
+    assert context.provisional is True
+
+
+def test_live_sufficiency_gate_blocks_when_coverage_low() -> None:
+    """Count and freshness pass but sparse data under-covers the window."""
+    samples = _points(_healthy_base(), count=149, start_seconds_ago=160.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(minutes=5),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+        sufficiency_policy=_live_policy(),
+    )
+
+    live = context.live_sufficiency
+    assert live is not None
+    assert live.sample_count >= live.required_sample_count
+    assert live.observation_duration_seconds >= live.required_duration_seconds
+    assert live.latest_sample_age_seconds <= live.max_sample_age_seconds
+    assert live.coverage_ratio < live.required_coverage
+    assert live.policy_met is False
+    assert any("coverage" in r for r in live.reasons)
+
+
+def test_live_sufficiency_zero_samples_stays_no_data() -> None:
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(minutes=1),
+        samples=[],
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+        sufficiency_policy=_live_policy(),
+    )
+
+    assert context.health_status == "no_data"
+    assert context.data_sufficiency == "no_data"
+    assert context.live_sufficiency is not None
+    assert context.live_sufficiency.policy_met is False
+    assert context.live_sufficiency.sample_count == 0
+    # No old snapshot is ever dressed up as a current-session verdict.
+    assert context.provisional is False

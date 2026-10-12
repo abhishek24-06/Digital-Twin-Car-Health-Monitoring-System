@@ -29,8 +29,13 @@ The observability layer is deliberately **hybrid**:
   and no second event system.
 
 The bus is bounded (500 events) and process-local (max 50 SSE subscribers).
-There is no workflow database table or migration; derived state is recomputed
-from existing state.
+It remains the live source of truth for SSE and the default `events/recent`.
+Since Phase 2 it is also mirrored **best-effort** into a bounded,
+restart-surviving audit table (`workflow_events`, age-bounded by
+`WORKFLOW_EVENT_RETENTION_HOURS`, default 72h). Persistence is fire-and-forget
+and never blocks — or fails — a publisher, so the live feed is unaffected if the
+store is unavailable; the table is history for post-incident review and is read
+via `?persisted=true`. Derived state is still recomputed from existing state.
 
 ## 2. Status vocabulary
 
@@ -70,10 +75,14 @@ Derived state is never presented as observed.
 
 ## 5. Endpoints
 
-- `GET /api/v1/workflow/events/recent` — paginated, newest first.
+- `GET /api/v1/workflow/events/recent` — paginated, newest first. Reads the
+  process-local live buffer by default; pass `?persisted=true` to read the
+  bounded durable audit store (survives restarts, age-bounded).
 - `GET /api/v1/workflow/events/stream` — SSE with heartbeat/reconnect; server
   side visibility filtering.
-- `GET /api/v1/workflow/status` — high-level system status.
+- `GET /api/v1/workflow/status` — high-level system status, including whether
+  durable persistence is enabled, its retention window, and the current
+  persisted-event count.
 - `GET /api/v1/workflow/state` — read-only derived telemetry pipeline state per
   vehicle (`TelemetryStage`/`StageState`/`VehicleTelemetryState`), with the
   `observation` field.

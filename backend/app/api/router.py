@@ -3,8 +3,10 @@ from fastapi import APIRouter
 from app.api.routes import (
     admin_rag,
     agent,
+    alerts,
     auth,
     health,
+    historical_analytics,
     rag,
     simulation,
     telemetry,
@@ -31,6 +33,11 @@ api_router.include_router(
     tags=["Vehicle Health"],
 )
 api_router.include_router(
+    historical_analytics.router,
+    prefix="/vehicles/{vehicle_id}/historical-analytics",
+    tags=["Historical Analytics"],
+)
+api_router.include_router(
     agent.router,
     prefix="/vehicles/{vehicle_id}/agent",
     tags=["Agent"],
@@ -48,3 +55,8 @@ api_router.include_router(
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG"])
 api_router.include_router(admin_rag.router, prefix="/admin", tags=["Admin RAG"])
 api_router.include_router(workflow.router, prefix="", tags=["Workflow"])
+api_router.include_router(
+    alerts.router,
+    prefix="/vehicles/{vehicle_id}/alerts",
+    tags=["Alerts"],
+)

@@ -3,18 +3,20 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings, get_settings
+from app.repositories.alert_repository import AlertRepository
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
 from app.schemas.telemetry import TelemetryCreate
 from app.schemas.vehicle import VehicleCreate
+from app.services.alert_service import AlertService
 from app.services.health_monitor import (
     HealthMonitorService,
     MonitorPassResult,
@@ -74,7 +76,9 @@ async def _create_vehicle(session: AsyncSession) -> UUID:
     return vehicle.id
 
 
-def _payload(*, coolant: float, engine_load: float, ts: datetime) -> TelemetryCreate:
+def _payload(
+    *, coolant: float, engine_load: float, ts: datetime, run_id: UUID | None = None
+) -> TelemetryCreate:
     return TelemetryCreate(
         timestamp=ts,
         rpm=2000.0,
@@ -88,6 +92,7 @@ def _payload(*, coolant: float, engine_load: float, ts: datetime) -> TelemetryCr
         throttle_position=20.0,
         engine_runtime=1000.0,
         odometer=50000.0,
+        simulation_run_id=run_id,
     )
 
 
@@ -118,6 +123,42 @@ async def _ingest(
     await session.commit()
 
 
+async def _ingest_run(
+    session: AsyncSession,
+    vehicle_id: UUID,
+    run_id: UUID,
+    *,
+    count: int = 40,
+    span_seconds: float = 40.0,
+    coolant: float = 90.0,
+    engine_load: float = 30.0,
+) -> None:
+    """Ingest ``count`` current-run samples (with run provenance).
+
+    Each timestamp is anchored to the moment it is written (oldest first) so the
+    newest sample stays fresh: the monitor's live sufficiency gate bounds
+    ``latest_sample_age_seconds`` and per-row commit latency must not be counted
+    as sample age.
+    """
+    telemetry_service = TelemetryService(
+        session=session,
+        repository=TelemetryRepository(session),
+        vehicle_repository=VehicleRepository(session),
+    )
+    for index in range(count):
+        await telemetry_service.create_telemetry(
+            vehicle_id,
+            _payload(
+                coolant=coolant,
+                engine_load=engine_load,
+                ts=datetime.now(UTC)
+                - timedelta(seconds=(count - index - 1) * span_seconds / count),
+                run_id=run_id,
+            ),
+        )
+    await session.commit()
+
+
 def _health_factory(explode_for: UUID | None = None):
     """Build health services, optionally raising for one specific vehicle."""
 
@@ -134,6 +175,11 @@ def _health_factory(explode_for: UUID | None = None):
                 if vehicle_id == explode_for:
                     raise RuntimeError("analysis failed")
                 return await real.analyze_vehicle(vehicle_id, **kwargs)
+
+            async def analyze_live_vehicle(self, vehicle_id, run_id, **kwargs):
+                if vehicle_id == explode_for:
+                    raise RuntimeError("analysis failed")
+                return await real.analyze_live_vehicle(vehicle_id, run_id, **kwargs)
 
         return Stub()
 
@@ -186,6 +232,57 @@ async def test_run_pass_escalates_critical_health_to_the_agent(
     assert result.escalated == 1
     assert result.failed == 0
     assert agent.calls == [vehicle_id]
+
+
+async def test_run_pass_does_not_escalate_provisional_critical(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """A critical *provisional* assessment (still collecting evidence) must
+    never re-trigger the diagnosis pipeline from insufficient data."""
+    vehicle_id = await _create_vehicle(session)
+    # Telemetry makes the vehicle "due", but the stub returns a provisional
+    # critical snapshot that must NOT be escalated.
+    await _ingest(session, vehicle_id)
+
+    async def fake_analyze_live(vehicle_id, run_id, **kwargs):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            id="00000000-0000-0000-0000-000000000001",
+            health_status="critical",
+            health_score=40.0,
+            confidence=0.4,
+            sample_count=5,
+            context_json={
+                "provisional": True,
+                "data_sufficiency": "limited_data",
+                "data_quality": {"sample_count": 5, "coverage_ratio": 0.1},
+                "simulation_run_id": str(run_id),
+                "live_sufficiency": {"policy_met": False},
+            },
+        )
+
+    class ProvisionalCriticalHealth:
+        async def analyze_live_vehicle(self, vehicle_id, run_id, **kwargs):
+            return await fake_analyze_live(vehicle_id, run_id, **kwargs)
+
+    agent = RecordingAgent()
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=lambda _: ProvisionalCriticalHealth(),
+        agent_service_factory=lambda _: agent,
+        run_resolver=_resolver_for(uuid4()),
+    )
+
+    result = await monitor.run_pass()
+
+    # The snapshot *looks* critical but is provisional: no escalation.
+    assert result.evaluated == 1
+    assert result.escalated == 0
+    assert agent.calls == []
 
 
 async def test_run_pass_does_not_escalate_attention_health(
@@ -345,6 +442,195 @@ async def test_escalation_failure_is_isolated(
 )
 def test_should_escalate_only_critical(health_status: str, expected: bool) -> None:
     assert should_escalate(health_status) is expected
+
+
+async def _resolver_none(vehicle_id: UUID) -> None:
+    """Run resolver that reports no active run for every vehicle."""
+    return None
+
+
+def _resolver_for(run_id: UUID):
+    async def resolver(vehicle_id: UUID) -> UUID | None:
+        return run_id
+
+    return resolver
+
+
+def _alert_factory(session: AsyncSession) -> AlertService:
+    return AlertService(
+        session=session,
+        vehicle_repository=VehicleRepository(session),
+        alert_repository=AlertRepository(session),
+    )
+
+
+# --- Run-aware current-session evaluation (Phase 2) ---
+
+
+async def test_run_pass_skips_vehicle_with_no_active_run(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """No active simulator run => no current session => nothing to evaluate,
+    even though historical telemetry exists. The old snapshot is never
+    overwritten by a fresh-window assessment across sessions."""
+    vehicle_id = await _create_vehicle(session)
+    await _ingest(session, vehicle_id)
+    calls: list[tuple[str, UUID]] = []
+
+    class CountingHealth:
+        async def analyze_vehicle(self, vehicle_id, **kwargs):
+            calls.append(("analyze_vehicle", vehicle_id))
+            raise AssertionError("window analysis must not run for a stopped vehicle")
+
+        async def analyze_live_vehicle(self, vehicle_id, run_id, **kwargs):
+            calls.append(("analyze_live_vehicle", vehicle_id))
+            raise AssertionError("live analysis must not run without an active run")
+
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=lambda _: CountingHealth(),
+        agent_service_factory=lambda _: RecordingAgent(),
+        run_resolver=_resolver_none,
+    )
+
+    result = await monitor.run_pass()
+
+    assert result == MonitorPassResult(considered=1, evaluated=0, failed=0)
+    assert calls == []
+    assert await HealthSnapshotRepository(session).get_latest_by_vehicle(vehicle_id) is None
+
+
+async def test_run_pass_evaluates_active_live_run(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """With an active run, the monitor evaluates the current session only."""
+    vehicle_id = await _create_vehicle(session)
+    run_id = uuid4()
+    await _ingest_run(session, vehicle_id, run_id, count=40, span_seconds=40.0)
+    agent = RecordingAgent()
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=_health_factory(),
+        agent_service_factory=lambda _: agent,
+        run_resolver=_resolver_for(run_id),
+    )
+
+    result = await monitor.run_pass()
+
+    assert result.evaluated == 1
+    assert result.failed == 0
+    snapshot = await HealthSnapshotRepository(session).get_latest_by_vehicle(vehicle_id)
+    assert snapshot is not None
+    assert snapshot.health_status == "healthy"
+    assert snapshot.context_json["simulation_run_id"] == str(run_id)
+    assert agent.calls == []
+
+
+async def test_run_pass_does_not_escalate_while_collecting(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """A fresh run with few samples is provisional: never escalated."""
+    vehicle_id = await _create_vehicle(session)
+    run_id = uuid4()
+    await _ingest_run(session, vehicle_id, run_id, count=5, span_seconds=5.0)
+    agent = RecordingAgent()
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=_health_factory(),
+        agent_service_factory=lambda _: agent,
+        run_resolver=_resolver_for(run_id),
+    )
+
+    result = await monitor.run_pass()
+
+    assert result.evaluated == 1
+    assert result.escalated == 0
+    assert agent.calls == []
+    snapshot = await HealthSnapshotRepository(session).get_latest_by_vehicle(vehicle_id)
+    assert snapshot is not None
+    assert snapshot.health_status == "limited_data"
+    assert snapshot.context_json["provisional"] is True
+
+
+async def test_run_pass_does_not_escalate_stale_live_feed(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """Plenty of current-run samples but none fresh: stays provisional."""
+    vehicle_id = await _create_vehicle(session)
+    run_id = uuid4()
+    telemetry_service = TelemetryService(
+        session=session,
+        repository=TelemetryRepository(session),
+        vehicle_repository=VehicleRepository(session),
+    )
+    now = datetime.now(UTC)
+    for index in range(40):
+        await telemetry_service.create_telemetry(
+            vehicle_id,
+            _payload(
+                coolant=120.0,
+                engine_load=90.0,
+                ts=now - timedelta(seconds=100 - index),
+                run_id=run_id,
+            ),
+        )
+    await session.commit()
+    agent = RecordingAgent()
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=_health_factory(),
+        agent_service_factory=lambda _: agent,
+        run_resolver=_resolver_for(run_id),
+    )
+
+    result = await monitor.run_pass()
+
+    assert result.evaluated == 1
+    assert result.escalated == 0
+    assert agent.calls == []
+    snapshot = await HealthSnapshotRepository(session).get_latest_by_vehicle(vehicle_id)
+    assert snapshot.context_json["provisional"] is True
+
+
+async def test_run_pass_materializes_alerts_for_critical_current_run(
+    session: AsyncSession,
+    session_factory: async_sessionmaker[AsyncSession],
+    monitor_settings: Settings,
+) -> None:
+    """A critical current-run finding becomes a persistent, open alert."""
+    vehicle_id = await _create_vehicle(session)
+    run_id = uuid4()
+    await _ingest_run(session, vehicle_id, run_id, coolant=120.0, engine_load=90.0)
+    monitor = HealthMonitorService(
+        session_factory,
+        settings=monitor_settings,
+        health_service_factory=_health_factory(),
+        agent_service_factory=lambda _: RecordingAgent(),
+        run_resolver=_resolver_for(run_id),
+        alert_service_factory=_alert_factory,
+    )
+
+    result = await monitor.run_pass()
+
+    assert result.evaluated == 1
+    active = await AlertRepository(session).list_active_by_vehicle(vehicle_id)
+    rules = sorted(alert.rule_id for alert in active)
+    assert "COOLANT_TEMP_HIGH" in rules
+    assert "ENGINE_LOAD_HIGH" in rules
+    assert all(alert.status == "open" for alert in active)
+    assert all(alert.simulation_run_id == run_id for alert in active)
 
 
 async def _run_loop_until_cancelled(monitor, interval_seconds: float, duration: float) -> int:

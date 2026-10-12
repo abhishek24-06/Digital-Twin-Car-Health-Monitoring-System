@@ -32,6 +32,11 @@ class SimulatorSettings(BaseSettings):
     # Vehicle identity (required).
     vehicle_id: UUID = Field(validation_alias="SIMULATOR_VEHICLE_ID")
 
+    # Simulation run identity (minted by the backend manager at spawn).
+    # Optional so legacy/manual runs can still start; when present the id is
+    # echoed into every telemetry/status envelope for current-session proof.
+    run_id: UUID | None = Field(default=None, validation_alias="SIMULATOR_RUN_ID")
+
     # Simulation control.
     scenario: ScenarioName = Field(default="normal", validation_alias="SIMULATOR_SCENARIO")
     interval_seconds: float = Field(

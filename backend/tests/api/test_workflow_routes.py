@@ -10,14 +10,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.routes.workflow import (
     _is_event_visible,
     stream_events,
 )
+from app.repositories.workflow_event_repository import WorkflowEventRepository
 from app.schemas.workflow import (
     WorkflowEvent,
     WorkflowStage,
@@ -411,3 +414,182 @@ def test_stream_route_does_not_pin_request_scoped_db_session() -> None:
             break
     else:  # pragma: no cover - fail loudly if the route is renamed
         raise AssertionError("telemetry stream route not found")
+
+
+async def _insert_persisted(events: list[WorkflowEvent], session_factory) -> None:
+    async with session_factory() as session:
+        await WorkflowEventRepository(session).insert_many(events)
+        await session.commit()
+
+
+async def test_recent_persisted_reads_durable_store_with_visibility(
+    auth_client: httpx.AsyncClient,
+    admin_client: httpx.AsyncClient,
+    other_user_client: httpx.AsyncClient,
+    sample_vehicle: dict,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """P2-2: ``persisted=true`` reads the durable store with the same visibility
+    rules as the live buffer (owned vehicles + global events; never another
+    user's vehicle and never rag_ingestion for non-admins)."""
+    other_vehicle = await other_user_client.post(
+        "/api/v1/vehicles",
+        json={
+            "vin": unique_vin(),
+            "make": "Honda",
+            "model": "Civic",
+            "year": 2022,
+            "engine_type": "1.8L Petrol",
+        },
+    )
+    assert other_vehicle.status_code == 201, other_vehicle.text
+    other_vehicle_id = other_vehicle.json()["id"]
+
+    now = datetime.now(UTC)
+    await _insert_persisted(
+        [
+            WorkflowEvent(
+                workflow=WorkflowType.SIMULATION,
+                stage=WorkflowStage.SIMULATION_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="owned-vehicle",
+                vehicle_id=UUID(sample_vehicle["id"]),
+                timestamp=now - timedelta(seconds=4),
+            ),
+            WorkflowEvent(
+                workflow=WorkflowType.SIMULATION,
+                stage=WorkflowStage.SIMULATION_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="other-vehicle",
+                vehicle_id=UUID(other_vehicle_id),
+                timestamp=now - timedelta(seconds=3),
+            ),
+            WorkflowEvent(
+                workflow=WorkflowType.RAG_INGESTION,
+                stage=WorkflowStage.DOCUMENT_UPLOAD_STARTED,
+                status=WorkflowStatus.STARTED,
+                message="private-ingestion",
+                timestamp=now - timedelta(seconds=2),
+            ),
+            WorkflowEvent(
+                workflow=WorkflowType.SYSTEM,
+                stage=WorkflowStage.SUBSCRIBER_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="global-system",
+                timestamp=now - timedelta(seconds=1),
+            ),
+        ],
+        session_factory,
+    )
+
+    user_response = await auth_client.get(
+        "/api/v1/workflow/events/recent", params={"persisted": "true"}
+    )
+    assert user_response.status_code == 200, user_response.text
+    user_body = user_response.json()
+    user_messages = {item["message"] for item in user_body["items"]}
+    assert "owned-vehicle" in user_messages
+    assert "global-system" in user_messages
+    assert "other-vehicle" not in user_messages
+    assert "private-ingestion" not in user_messages
+    assert user_body["total"] == 2
+
+    admin_response = await admin_client.get(
+        "/api/v1/workflow/events/recent", params={"persisted": "true"}
+    )
+    assert admin_response.status_code == 200, admin_response.text
+    admin_body = admin_response.json()
+    assert {item["message"] for item in admin_body["items"]} >= {
+        "owned-vehicle",
+        "other-vehicle",
+        "private-ingestion",
+        "global-system",
+    }
+    assert admin_body["total"] == 4
+
+
+async def test_recent_persisted_applies_filters(
+    auth_client: httpx.AsyncClient,
+    sample_vehicle: dict,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    now = datetime.now(UTC)
+    await _insert_persisted(
+        [
+            WorkflowEvent(
+                workflow=WorkflowType.SIMULATION,
+                stage=WorkflowStage.SIMULATION_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="sim",
+                vehicle_id=UUID(sample_vehicle["id"]),
+                timestamp=now - timedelta(seconds=2),
+            ),
+            WorkflowEvent(
+                workflow=WorkflowType.SYSTEM,
+                stage=WorkflowStage.SUBSCRIBER_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="system",
+                timestamp=now - timedelta(seconds=1),
+            ),
+        ],
+        session_factory,
+    )
+
+    response = await auth_client.get(
+        "/api/v1/workflow/events/recent",
+        params={"persisted": "true", "workflow": "system"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["message"] == "system"
+
+
+async def test_recent_default_source_is_the_live_buffer(
+    auth_client: httpx.AsyncClient,
+    sample_vehicle: dict,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The default read path stays the in-memory buffer, not the durable store."""
+    await _insert_persisted(
+        [
+            WorkflowEvent(
+                workflow=WorkflowType.SIMULATION,
+                stage=WorkflowStage.SIMULATION_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="durable-only",
+                vehicle_id=UUID(sample_vehicle["id"]),
+            )
+        ],
+        session_factory,
+    )
+    bus = get_workflow_event_bus()
+    await bus.clear()
+
+    response = await auth_client.get("/api/v1/workflow/events/recent")
+    assert response.status_code == 200, response.text
+    assert "durable-only" not in {item["message"] for item in response.json()["items"]}
+
+
+async def test_status_reports_durable_store_disclosure(
+    auth_client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _insert_persisted(
+        [
+            WorkflowEvent(
+                workflow=WorkflowType.SYSTEM,
+                stage=WorkflowStage.SUBSCRIBER_STARTED,
+                status=WorkflowStatus.SUCCESS,
+                message="persisted",
+            )
+        ],
+        session_factory,
+    )
+
+    response = await auth_client.get("/api/v1/workflow/status")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["event_persistence_enabled"] is True
+    assert body["event_retention_hours"] == 72.0
+    assert body["persisted_events"] >= 1

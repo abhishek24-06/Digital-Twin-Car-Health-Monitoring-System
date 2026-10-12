@@ -48,6 +48,14 @@ class TelemetryRecord(UUIDPrimaryKeyMixin, Base):
 
     source_event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    # Provenance of the simulator run that produced this sample (NULL for
+    # legacy/REST ingestion without a run identity). Never fabricated for an
+    # unidentifiable event; telemetry without a run id stays NULL.
+    simulation_run_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -61,6 +69,12 @@ class TelemetryRecord(UUIDPrimaryKeyMixin, Base):
 
     __table_args__ = (
         Index("ix_telemetry_records_vehicle_id_timestamp", "vehicle_id", "timestamp"),
+        Index(
+            "ix_telemetry_records_vehicle_run_timestamp",
+            "vehicle_id",
+            "simulation_run_id",
+            "timestamp",
+        ),
         Index(
             "uq_telemetry_records_vehicle_source_event",
             "vehicle_id",

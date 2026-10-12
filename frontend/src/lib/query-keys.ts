@@ -16,11 +16,24 @@ export const queryKeys = {
   health: (vehicleId: string) => ["health", vehicleId] as const,
   healthHistory: (vehicleId: string, page: number) =>
     ["health-history", vehicleId, page] as const,
+  liveHealth: (vehicleId: string) => ["live-health", vehicleId] as const,
+  historicalAnalytics: (vehicleId: string, range: string, timezone: string) =>
+    ["historical-analytics", vehicleId, range, timezone] as const,
 
   agentDashboard: (vehicleId: string) => ["agent-dashboard", vehicleId] as const,
   agentLatest: (vehicleId: string) => ["agent-latest", vehicleId] as const,
   agentHistory: (vehicleId: string, page: number) =>
     ["agent-history", vehicleId, page] as const,
+
+  /**
+   * Persistent alerts. `alertsRoot` is the prefix used to invalidate every
+   * page/filter at once after a lifecycle mutation.
+   */
+  alertsRoot: (vehicleId: string) => ["alerts", vehicleId] as const,
+  alerts: (vehicleId: string, status: string, severity: string, page: number) =>
+    ["alerts", vehicleId, status, severity, page] as const,
+  alert: (vehicleId: string, alertId: string) =>
+    ["alerts", vehicleId, "detail", alertId] as const,
 
   ragSearch: (vehicleId: string | null, query: string) =>
     ["rag-search", vehicleId, query] as const,

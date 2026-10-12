@@ -3,11 +3,26 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
-import { agentApi, healthApi, telemetryApi, vehiclesApi } from "@/services/vehicles";
+import {
+  agentApi,
+  healthApi,
+  historicalAnalyticsApi,
+  liveHealthApi,
+  telemetryApi,
+  vehiclesApi,
+} from "@/services/vehicles";
+import { alertsApi } from "@/services/alerts";
 import type {
+  AlertDetail,
+  AlertItem,
+  AlertStatus,
   DiagnosisResponse,
   HealthContextResponse,
+  HistoricalAnalyticsResponse,
+  HistoricalRangePreset,
+  LiveHealthStatusResponse,
   PaginatedResponse,
+  Severity,
   TelemetryResponse,
   VehicleResponse,
 } from "@/types/api";
@@ -112,6 +127,47 @@ export function useHealthHistory(
   });
 }
 
+/**
+ * Live current-session health. Polls gently while the page is open: the live
+ * view reflects the fresh current run (fresh / collecting / stale / no session)
+ * plus the definitive assessment once the sufficiency gate clears.
+ */
+export function useLiveHealth(vehicleId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.liveHealth(vehicleId ?? "none"),
+    queryFn: ({ signal }): Promise<LiveHealthStatusResponse> =>
+      liveHealthApi.get(vehicleId as string, signal),
+    enabled: Boolean(vehicleId),
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
+  });
+}
+
+export interface HistoricalAnalyticsQuerySpec {
+  range: HistoricalRangePreset;
+  timezone: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+/** Read-only historical analytics for one validated window (null spec = disabled). */
+export function useHistoricalAnalytics(
+  vehicleId: string | null | undefined,
+  params: HistoricalAnalyticsQuerySpec | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.historicalAnalytics(
+      vehicleId ?? "none",
+      params?.range ?? "none",
+      params?.timezone ?? "none",
+    ),
+    queryFn: ({ signal }): Promise<HistoricalAnalyticsResponse> =>
+      historicalAnalyticsApi.get(vehicleId as string, params as HistoricalAnalyticsQuerySpec, signal),
+    enabled: Boolean(vehicleId) && params !== null,
+  });
+}
+
 export function useAgentDashboard(vehicleId: string | null | undefined) {
   return useQuery({
     queryKey: queryKeys.agentDashboard(vehicleId ?? "none"),
@@ -146,5 +202,46 @@ export function useAgentHistory(
     queryFn: ({ signal }) =>
       agentApi.history(vehicleId as string, { page, pageSize: 20 }, signal),
     enabled: Boolean(vehicleId),
+  });
+}
+
+export interface VehicleAlertsSpec {
+  status?: AlertStatus;
+  severity?: Severity;
+  page?: number;
+}
+
+/**
+ * A vehicle's persistent alerts. Placeholder data keeps the current page
+ * visible while a filter/page change is fetching, so the table never flashes
+ * empty between requests — but it is scoped to the *same vehicle*, so a vehicle
+ * switch can never briefly show another vehicle's alerts.
+ */
+export function useVehicleAlerts(
+  vehicleId: string | null | undefined,
+  spec: VehicleAlertsSpec = {},
+) {
+  const { status, severity, page = 1 } = spec;
+  const scope = vehicleId ?? "none";
+  return useQuery({
+    queryKey: queryKeys.alerts(scope, status ?? "all", severity ?? "all", page),
+    queryFn: ({ signal }): Promise<PaginatedResponse<AlertItem>> =>
+      alertsApi.list(vehicleId as string, { status, severity, page, pageSize: 20 }, signal),
+    enabled: Boolean(vehicleId),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey?.[1] === scope ? previous : undefined,
+  });
+}
+
+/** One alert's detail (raw evidence + audit history). Disabled without an id. */
+export function useAlertDetail(
+  vehicleId: string | null | undefined,
+  alertId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: queryKeys.alert(vehicleId ?? "none", alertId ?? "none"),
+    queryFn: ({ signal }): Promise<AlertDetail> =>
+      alertsApi.get(vehicleId as string, alertId as string, signal),
+    enabled: Boolean(vehicleId) && Boolean(alertId),
   });
 }

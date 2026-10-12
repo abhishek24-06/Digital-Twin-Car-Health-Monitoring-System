@@ -8,10 +8,13 @@ from app.agent.service import AgentService
 from app.core.database import get_session_factory
 from app.rag.admin_documents import AdminRagDocumentService
 from app.rag.rag_service import RAGService
+from app.repositories.alert_repository import AlertRepository
 from app.repositories.health_snapshot_repository import HealthSnapshotRepository
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.services.alert_service import AlertService
 from app.services.auth_service import AuthService, UserService
+from app.services.historical_analytics_service import HistoricalAnalyticsService
 from app.services.telemetry_service import TelemetryService
 from app.services.vehicle_health_service import VehicleHealthService
 from app.services.vehicle_service import VehicleService
@@ -53,6 +56,28 @@ def get_vehicle_health_service(
         vehicle_repository=VehicleRepository(session),
         telemetry_repository=TelemetryRepository(session),
         health_repository=HealthSnapshotRepository(session),
+    )
+
+
+def get_historical_analytics_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> HistoricalAnalyticsService:
+    return HistoricalAnalyticsService(
+        session=session,
+        vehicle_repository=VehicleRepository(session),
+        telemetry_repository=TelemetryRepository(session),
+        health_snapshot_repository=HealthSnapshotRepository(session),
+    )
+
+
+def get_alert_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AlertService:
+    """Request-scoped alert service (list/acknowledge/resolve)."""
+    return AlertService(
+        session=session,
+        vehicle_repository=VehicleRepository(session),
+        alert_repository=AlertRepository(session),
     )
 
 

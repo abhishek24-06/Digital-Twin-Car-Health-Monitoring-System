@@ -43,6 +43,7 @@ async def run_forever(settings: SimulatorSettings, stop_event: asyncio.Event) ->
                 await publisher.publish_status(
                     StatusMessage(
                         vehicle_id=settings.vehicle_id,
+                        simulation_run_id=settings.run_id,
                         status="online",
                         timestamp=_now_utc(),
                     )
@@ -54,6 +55,7 @@ async def run_forever(settings: SimulatorSettings, stop_event: asyncio.Event) ->
                         schema_version=SCHEMA_VERSION,
                         event_id=uuid4().hex,
                         vehicle_id=settings.vehicle_id,
+                        simulation_run_id=settings.run_id,
                         timestamp=_now_utc(),
                         telemetry=sample,
                     )
@@ -90,6 +92,7 @@ async def _publish_offline_status(settings: SimulatorSettings) -> None:
             await publisher.publish_status(
                 StatusMessage(
                     vehicle_id=settings.vehicle_id,
+                    simulation_run_id=settings.run_id,
                     status="offline",
                     timestamp=_now_utc(),
                 )

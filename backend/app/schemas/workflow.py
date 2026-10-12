@@ -203,6 +203,13 @@ class WorkflowStatusResponse(BaseModel):
     events_in_buffer: int
     oldest_event_ts: datetime | None = None
     newest_event_ts: datetime | None = None
+    # Durable audit store disclosure: the buffer counted above is process-local
+    # and lost on restart. These fields describe the bounded persisted history
+    # that survives restarts (``persisted_events`` is ``None`` when the durable
+    # store could not be read -- never a fabricated zero).
+    event_persistence_enabled: bool = False
+    event_retention_hours: float | None = None
+    persisted_events: int | None = None
 
 
 class WorkflowEventFilters(BaseModel):

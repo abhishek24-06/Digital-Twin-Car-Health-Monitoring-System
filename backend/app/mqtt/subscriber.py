@@ -302,6 +302,7 @@ class MQTTSubscriber:
             fields: dict[str, Any] = envelope.telemetry.model_dump()
             fields["timestamp"] = envelope.timestamp
             fields["source_event_id"] = envelope.event_id
+            fields["simulation_run_id"] = envelope.simulation_run_id
             fields["raw_payload"] = envelope.model_dump(mode="json")
             items.append((envelope.vehicle_id, TelemetryCreate(**fields)))
 

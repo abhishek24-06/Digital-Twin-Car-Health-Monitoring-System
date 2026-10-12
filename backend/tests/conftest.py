@@ -83,8 +83,8 @@ async def _ensure_test_database_exists() -> None:
 
 async def _truncate_all() -> None:
     tables = (
-        "refresh_tokens, users, telemetry_records, vehicle_health_snapshots, "
-        "agent_diagnoses, vehicles"
+        "alert_events, alerts, workflow_events, refresh_tokens, users, "
+        "telemetry_records, vehicle_health_snapshots, agent_diagnoses, vehicles"
     )
     if supports_pgvector():
         tables = f"rag_chunks, rag_document_versions, rag_documents, {tables}"

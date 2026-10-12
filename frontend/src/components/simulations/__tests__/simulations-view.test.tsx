@@ -62,6 +62,7 @@ function stopped(): SimulationStatusResponse {
     started_at: null,
     error: null,
     last_telemetry_at: null,
+    run_id: null,
   };
 }
 
@@ -75,6 +76,7 @@ function running(overrides: Partial<SimulationStatusResponse> = {}): SimulationS
     started_at: "2026-01-01T10:00:00Z",
     error: null,
     last_telemetry_at: new Date().toISOString(),
+    run_id: "46c9b21e-0c84-4d2c-8b2b-7b1c0f0a3a71",
     ...overrides,
   };
 }

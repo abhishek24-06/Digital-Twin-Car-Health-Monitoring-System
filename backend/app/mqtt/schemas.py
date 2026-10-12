@@ -4,14 +4,18 @@ The telemetry envelope is intentionally versioned so payload format changes
 can be signalled without breaking older producers/consumers:
 
     {
-      "schema_version": 1,
+      "schema_version": 2,
       "event_id": "ABC123",
       "vehicle_id": "...",
+      "simulation_run_id": "urn:uuid:...",
       "timestamp": "2026-01-01T00:00:00Z",
       "telemetry": { ... }
     }
 
 ``timestamp`` is required to be timezone-aware; naive values are rejected.
+``simulation_run_id`` is the unique identifier of the simulator run that
+produced the message (optional): legitimate legacy producers omit it, and the
+subscriber persists ``NULL`` in that case rather than inventing provenance.
 """
 
 from __future__ import annotations
@@ -22,7 +26,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def ensure_timezone_aware(value: datetime) -> datetime:
@@ -57,6 +61,7 @@ class TelemetryMessage(BaseModel):
     schema_version: int = Field(ge=1, le=255)
     event_id: str = Field(min_length=1, max_length=64)
     vehicle_id: UUID
+    simulation_run_id: UUID | None = None
     timestamp: datetime
     telemetry: TelemetryData
 
@@ -72,6 +77,7 @@ class StatusMessage(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     vehicle_id: UUID
+    simulation_run_id: UUID | None = None
     status: Literal["online", "offline"]
     timestamp: datetime
 

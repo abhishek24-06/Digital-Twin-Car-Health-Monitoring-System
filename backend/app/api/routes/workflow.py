@@ -22,8 +22,10 @@ from app.core.database import get_session_factory
 from app.dependencies.auth import get_current_user, get_current_user_stream
 from app.dependencies.database import get_db
 from app.models.user import User
+from app.models.workflow_event import WorkflowEventRecord
 from app.repositories.telemetry_repository import TelemetryRepository
 from app.repositories.vehicle_repository import VehicleRepository
+from app.repositories.workflow_event_repository import WorkflowEventRepository
 from app.schemas.workflow import (
     WorkflowEvent,
     WorkflowEventFilters,
@@ -110,6 +112,23 @@ def _event_to_response(event) -> WorkflowEventResponse:
     )
 
 
+def _record_to_response(record: WorkflowEventRecord) -> WorkflowEventResponse:
+    """API response for one persisted workflow event."""
+    return WorkflowEventResponse(
+        event_id=record.event_id,
+        timestamp=record.timestamp,
+        workflow=WorkflowType(record.workflow),
+        stage=WorkflowStage(record.stage),
+        status=WorkflowStatus(record.status),
+        message=record.message,
+        vehicle_id=record.vehicle_id,
+        document_id=record.document_id,
+        correlation_id=record.correlation_id,
+        duration_ms=record.duration_ms,
+        metadata=record.metadata_json or {},
+    )
+
+
 async def _latest_health_failures() -> dict[UUID, HealthEvaluationFailure]:
     """Most recent failed health evaluation per vehicle, from the event bus.
 
@@ -143,17 +162,51 @@ async def _latest_health_failures() -> dict[UUID, HealthEvaluationFailure]:
     description=(
         "Return paginated recent workflow events, newest first. "
         "Supports filtering by workflow, stage, status, vehicle, document, "
-        "and time range. Maximum limit is 500 events."
+        "and time range. Maximum limit is 500 events. By default this reads the "
+        "process-local live buffer (fast, lost on restart); pass "
+        "``persisted=true`` to read the bounded durable audit store instead."
     ),
 )
 async def get_recent_events(
     filters: Annotated[WorkflowEventFilters, Depends()],
     session: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
+    persisted: Annotated[
+        bool,
+        Query(
+            description=(
+                "Read the durable audit store instead of the in-memory live "
+                "buffer. The buffer is process-local and lost on restart; the "
+                "durable store survives restarts and is age-bounded."
+            )
+        ),
+    ] = False,
 ) -> WorkflowRecentResponse:
     """Get recent workflow events with optional filtering."""
-    bus = get_workflow_event_bus()
     owned_vehicle_ids = await _owned_vehicle_ids(session, user)
+
+    if persisted:
+        records, total = await WorkflowEventRepository(session).list_recent(
+            workflow=filters.workflow.value if filters.workflow else None,
+            stage=filters.stage.value if filters.stage else None,
+            status=filters.status.value if filters.status else None,
+            vehicle_id=filters.vehicle_id,
+            document_id=filters.document_id,
+            correlation_id=filters.correlation_id,
+            since=filters.since,
+            until=filters.until,
+            owned_vehicle_ids=owned_vehicle_ids,
+            limit=filters.limit,
+            offset=filters.offset,
+        )
+        return WorkflowRecentResponse(
+            items=[_record_to_response(record) for record in records],
+            total=total,
+            limit=filters.limit,
+            offset=filters.offset,
+        )
+
+    bus = get_workflow_event_bus()
 
     # Get all events (newest first) then apply filters
     all_events = await bus.get_recent(limit=filters.limit + filters.offset, offset=0)
@@ -311,6 +364,15 @@ async def get_workflow_status(
     """Get high-level workflow system status."""
     bus = get_workflow_event_bus()
     bus_status = await bus.get_status()
+    settings = get_settings()
+
+    persistence_enabled = settings.workflow_event_persistence_enabled
+    persisted_events: int | None = None
+    if persistence_enabled:
+        try:
+            persisted_events = await WorkflowEventRepository(session).count()
+        except Exception:  # noqa: BLE001 - status must render if the store is down
+            logger.warning("workflow event count failed", exc_info=True)
 
     # Check subscriber
     sub_supervisor = get_subscriber_supervisor()
@@ -338,6 +400,11 @@ async def get_workflow_status(
         events_in_buffer=bus_status["events_in_buffer"],
         oldest_event_ts=bus_status["oldest_event_ts"],
         newest_event_ts=bus_status["newest_event_ts"],
+        event_persistence_enabled=persistence_enabled,
+        event_retention_hours=(
+            settings.workflow_event_retention_hours if persistence_enabled else None
+        ),
+        persisted_events=persisted_events,
     )
 
 

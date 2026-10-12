@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.telemetry import TelemetryRecord
+
+logger = logging.getLogger(__name__)
 
 # Columns written by ``insert_many``. ``created_at``/``updated_at`` are omitted so
 # the database server defaults apply (same as a normal ORM insert).
@@ -28,6 +31,7 @@ _INSERT_COLUMNS = (
     "odometer",
     "raw_payload",
     "source_event_id",
+    "simulation_run_id",
 )
 
 
@@ -105,26 +109,156 @@ class TelemetryRepository:
         start_time: datetime,
         end_time: datetime,
         limit: int | None = None,
+        run_id: UUID | None = None,
+        exclude_run_id: UUID | None = None,
     ) -> list[TelemetryRecord]:
         """Efficiently retrieve a chronological telemetry window.
 
         Inclusive bounds on ``timestamp``; ordered oldest-first. Uses the
-        existing ``(vehicle_id, timestamp)`` index. ``limit`` bounds the rows
-        a caller may load.
+        existing ``(vehicle_id, timestamp)`` index (or the run-aware index when
+        ``run_id`` is supplied). ``limit`` bounds the rows a caller may load; it
+        keeps the *newest* rows in the window (dropping the oldest) while still
+        returning them oldest-first. ``run_id`` narrows to one run;
+        ``exclude_run_id`` excludes one run (used to keep a current session out
+        of its own historical baseline).
         """
-        statement = (
-            select(TelemetryRecord)
+        statement = select(TelemetryRecord).where(
+            TelemetryRecord.vehicle_id == vehicle_id,
+            TelemetryRecord.timestamp >= start_time,
+            TelemetryRecord.timestamp <= end_time,
+        )
+        if run_id is not None:
+            statement = statement.where(TelemetryRecord.simulation_run_id == run_id)
+        elif exclude_run_id is not None:
+            statement = statement.where(
+                or_(
+                    TelemetryRecord.simulation_run_id.is_(None),
+                    TelemetryRecord.simulation_run_id != exclude_run_id,
+                )
+            )
+
+        # A bounded caller limit must keep the *newest* rows in the window, not
+        # the oldest: ordering ascending and applying LIMIT would silently drop
+        # the freshest samples (the exact rows a live verdict needs). Query
+        # newest-first when a limit is present, then restore chronological
+        # (oldest-first) order so the callers' ordering contract is unchanged.
+        if limit is None:
+            statement = statement.order_by(
+                TelemetryRecord.timestamp.asc(), TelemetryRecord.id.asc()
+            )
+        else:
+            statement = statement.order_by(
+                TelemetryRecord.timestamp.desc(), TelemetryRecord.id.desc()
+            ).limit(limit)
+
+        result = await self._session.scalars(statement)
+        records = list(result.all())
+        if limit is not None:
+            records.reverse()
+            if len(records) == limit:
+                logger.warning(
+                    "telemetry window truncated to %s newest rows "
+                    "(vehicle_id=%s window=[%s, %s] run_id=%s exclude_run_id=%s); "
+                    "the oldest rows in the window were dropped",
+                    limit,
+                    vehicle_id,
+                    start_time,
+                    end_time,
+                    run_id,
+                    exclude_run_id,
+                )
+        return records
+
+    async def get_run_timestamp_bounds(
+        self,
+        vehicle_id: UUID,
+        run_id: UUID,
+        *,
+        after: datetime | None = None,
+    ) -> tuple[datetime, datetime] | None:
+        """Earliest and newest source timestamps persisted for one run.
+
+        Returns ``None`` when the run has no persisted rows. ``after`` bounds
+        the search from below (the analysis window), giving the session start
+        within the window even when the run predates it.
+        """
+        filters = [
+            TelemetryRecord.vehicle_id == vehicle_id,
+            TelemetryRecord.simulation_run_id == run_id,
+        ]
+        if after is not None:
+            filters.append(TelemetryRecord.timestamp >= after)
+        row = await self._session.execute(
+            select(
+                func.min(TelemetryRecord.timestamp),
+                func.max(TelemetryRecord.timestamp),
+            ).where(*filters)
+        )
+        first_ts, last_ts = row.one()
+        if first_ts is None or last_ts is None:
+            return None
+        return first_ts, last_ts
+
+    async def get_run_segments(
+        self,
+        vehicle_id: UUID,
+        *,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> list[tuple[UUID | None, int, datetime, datetime]]:
+        """Per-run boundary segments within a time window.
+
+        Returns ``(run_id, sample_count, first_ts, last_ts)`` per distinct
+        persisted ``simulation_run_id`` (including a legacy ``None`` segment
+        for rows without provenance), ordered by the segment's first sample.
+        Backed by the ``(vehicle_id, simulation_run_id, timestamp)`` index.
+        """
+        rows = await self._session.execute(
+            select(
+                TelemetryRecord.simulation_run_id,
+                func.count(),
+                func.min(TelemetryRecord.timestamp),
+                func.max(TelemetryRecord.timestamp),
+            )
             .where(
                 TelemetryRecord.vehicle_id == vehicle_id,
                 TelemetryRecord.timestamp >= start_time,
                 TelemetryRecord.timestamp <= end_time,
             )
-            .order_by(TelemetryRecord.timestamp.asc(), TelemetryRecord.id.asc())
+            .group_by(TelemetryRecord.simulation_run_id)
+            .order_by(func.min(TelemetryRecord.timestamp).asc())
         )
-        if limit is not None:
-            statement = statement.limit(limit)
-        result = await self._session.scalars(statement)
-        return list(result.all())
+        return [
+            (run_id, count, first_ts, last_ts)
+            for run_id, count, first_ts, last_ts in rows.all()
+        ]
+
+    async def get_latest_run_record(
+        self,
+        vehicle_id: UUID,
+        run_id: UUID,
+        *,
+        after: datetime | None = None,
+    ) -> TelemetryRecord | None:
+        """Newest persisted row belonging to one active run.
+
+        Returns both the source timestamp and the DB persistence time
+        (``created_at``) of the freshest current-run sample so callers can
+        separate measurement chronology from ingestion time.
+        """
+        filters = [
+            TelemetryRecord.vehicle_id == vehicle_id,
+            TelemetryRecord.simulation_run_id == run_id,
+        ]
+        if after is not None:
+            filters.append(TelemetryRecord.timestamp >= after)
+        statement = (
+            select(TelemetryRecord)
+            .where(*filters)
+            .order_by(TelemetryRecord.timestamp.desc(), TelemetryRecord.id.desc())
+            .limit(1)
+        )
+        return await self._session.scalar(statement)
 
     async def list_since(
         self,

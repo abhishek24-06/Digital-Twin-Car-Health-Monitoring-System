@@ -10,6 +10,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.agent_diagnosis import AgentDiagnosis
+    from app.models.alert import Alert
     from app.models.health_snapshot import HealthSnapshot
     from app.models.telemetry import TelemetryRecord
     from app.models.user import User
@@ -57,6 +58,12 @@ class Vehicle(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     health_snapshots: Mapped[list[HealthSnapshot]] = relationship(
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    alerts: Mapped[list[Alert]] = relationship(
         back_populates="vehicle",
         cascade="all, delete-orphan",
         passive_deletes=True,

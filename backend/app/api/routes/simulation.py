@@ -68,6 +68,7 @@ def _to_response(
         error=error,
         last_telemetry_at=last_telemetry_at,
         correlation_id=correlation_id,
+        run_id=simulation.run_id,
     )
 
 

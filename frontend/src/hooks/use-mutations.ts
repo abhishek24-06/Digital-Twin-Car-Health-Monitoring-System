@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { alertsApi } from "@/services/alerts";
 import { simulationsApi } from "@/services/simulations";
 import { agentApi, healthApi, telemetryApi, vehiclesApi } from "@/services/vehicles";
 import { queryKeys } from "@/lib/query-keys";
@@ -100,8 +101,7 @@ export function useCreateTelemetry(vehicleId: string) {
 /**
  * One optimistic patch of the in-memory simulations list so the polled page
  * shows the mutation's result immediately, before the 5s refetch lands.
- */
-function patchSimulation(
+ */function patchSimulation(
   queryClient: ReturnType<typeof useQueryClient>,
   status: SimulationStatusResponse | undefined,
 ) {
@@ -151,6 +151,40 @@ export function useStopSimulation(vehicleId: string) {
     onSuccess: (status) => {
       patchSimulation(queryClient, status);
       void queryClient.invalidateQueries({ queryKey: queryKeys.simulations });
+    },
+  });
+}
+
+export interface AlertActionVariables {
+  alertId: string;
+  note?: string;
+}
+
+/**
+ * Acknowledge an alert. The returned detail is written straight into the
+ * detail cache and every list page is invalidated so its status badge updates.
+ */
+export function useAcknowledgeAlert(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alertId, note }: AlertActionVariables) =>
+      alertsApi.acknowledge(vehicleId, alertId, note),
+    onSuccess: (alert) => {
+      queryClient.setQueryData(queryKeys.alert(vehicleId, alert.id), alert);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.alertsRoot(vehicleId) });
+    },
+  });
+}
+
+/** Resolve an alert (terminal). A recurrence later creates a new alert. */
+export function useResolveAlert(vehicleId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ alertId, note }: AlertActionVariables) =>
+      alertsApi.resolve(vehicleId, alertId, note),
+    onSuccess: (alert) => {
+      queryClient.setQueryData(queryKeys.alert(vehicleId, alert.id), alert);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.alertsRoot(vehicleId) });
     },
   });
 }

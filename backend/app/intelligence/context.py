@@ -13,6 +13,7 @@ from app.intelligence.models import (
     DataQuality,
     Finding,
     HealthContext,
+    LiveSufficiencyState,
     MetricStatistics,
     ScoreDetails,
     TrendInsight,
@@ -35,6 +36,8 @@ def build_context(
     data_sufficiency: str = "sufficient_data",
     provisional: bool = False,
     provisional_rating: str | None = None,
+    simulation_run_id: UUID | None = None,
+    live_sufficiency: LiveSufficiencyState | None = None,
 ) -> HealthContext:
     """Assemble the typed, versioned, serializable health context."""
     if data_sufficiency == "no_data":
@@ -62,6 +65,14 @@ def build_context(
         data_sufficiency=data_sufficiency,
         provisional=provisional,
         provisional_rating=provisional_rating,
+        simulation_run_id=simulation_run_id,
+        live_sufficiency=live_sufficiency,
+        # A live current-session evaluation always carries a sufficiency
+        # outcome; every windowed/historical analysis does not. This is the
+        # single place scope is decided, so stored context is unambiguous.
+        analysis_scope=(
+            "current_session" if live_sufficiency is not None else "historical_window"
+        ),
     )
 
 

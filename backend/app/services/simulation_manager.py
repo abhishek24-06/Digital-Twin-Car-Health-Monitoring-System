@@ -47,7 +47,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ConflictError, SimulationError
@@ -182,6 +182,7 @@ class SimulationStatus:
     started_at: datetime | None = None
     error: str | None = None
     correlation_id: str | None = None
+    run_id: UUID | None = None
 
 
 @dataclass
@@ -194,6 +195,7 @@ class _Instance:
     process: ProcessHandle | None
     pid_file: Path
     started_at: datetime
+    run_id: UUID
     error: str | None = None
     log_file: Path | None = None
     settled: asyncio.Event = field(default_factory=asyncio.Event)
@@ -295,6 +297,7 @@ class SimulationManager:
                     "scenario": scenario,
                     "interval_seconds": interval_seconds,
                     "pid": instance.process.pid if instance.process else None,
+                    "run_id": str(instance.run_id),
                 }
             ),
         )
@@ -417,6 +420,7 @@ class SimulationManager:
                     "scenario": scenario,
                     "interval_seconds": interval_seconds,
                     "pid": instance.process.pid if instance.process else None,
+                    "run_id": str(instance.run_id),
                 }
             ),
         )
@@ -426,6 +430,21 @@ class SimulationManager:
     async def get_status(self, vehicle_id: UUID) -> SimulationStatus:
         async with self._lock:
             return self._to_status(vehicle_id, self._instances.get(vehicle_id))
+
+    async def active_run_id(self, vehicle_id: UUID) -> UUID | None:
+        """The run id of the vehicle's *active* simulator session, if any.
+
+        ``None`` for a stopped/errored vehicle: no current-session identity
+        exists, so no live assessment can be tied to the vehicle. The run id of
+        a dead run stays with the telemetry it produced (historical evidence).
+        """
+        async with self._lock:
+            instance = self._instances.get(vehicle_id)
+        if instance is None:
+            return None
+        if instance.status in (_STATE_STARTING, _STATE_RUNNING, _STATE_STOPPING):
+            return instance.run_id
+        return None
 
     async def statuses_for(self, vehicle_ids: list[UUID]) -> dict[UUID, SimulationStatus]:
         """Status snapshot for many vehicles in one locked pass."""
@@ -510,7 +529,13 @@ class SimulationManager:
         seed: int | None,
     ) -> _Instance:
         seed_value = DEFAULT_SEED if seed is None else int(seed)
-        cmd, env = self._build_command_and_env(vehicle_id, scenario, interval_seconds, seed_value)
+        # Every spawn gets a brand-new run identity: a restart must never reuse
+        # (or inherit) the previous run's id, so fresh telemetry can be proven
+        # current-session evidence.
+        run_id = uuid4()
+        cmd, env = self._build_command_and_env(
+            vehicle_id, scenario, interval_seconds, seed_value, run_id
+        )
         log_file = self._runtime_dir / f"{vehicle_id}.log"
         process = await self._spawn(cmd, env, log_file)
         instance = _Instance(
@@ -522,6 +547,7 @@ class SimulationManager:
             process=process,
             pid_file=self._runtime_dir / f"{vehicle_id}.{process.pid}.pid",
             started_at=datetime.now(UTC),
+            run_id=run_id,
             log_file=log_file,
         )
         self._write_pid_file(instance.pid_file, process.pid, owner_pid=os.getpid())
@@ -620,12 +646,14 @@ class SimulationManager:
         scenario: ScenarioName,
         interval_seconds: float,
         seed: int,
+        run_id: UUID,
     ) -> tuple[list[str], dict[str, str]]:
         settings = self._settings
         env = dict(os.environ)
         env.update(
             {
                 "SIMULATOR_VEHICLE_ID": str(vehicle_id),
+                "SIMULATOR_RUN_ID": str(run_id),
                 "SIMULATOR_SCENARIO": scenario,
                 "SIMULATOR_INTERVAL_SECONDS": repr(interval_seconds),
                 "SIMULATOR_SEED": str(seed),
@@ -648,6 +676,15 @@ class SimulationManager:
     def _to_status(self, vehicle_id: UUID, instance: _Instance | None) -> SimulationStatus:
         if instance is None:
             return SimulationStatus(vehicle_id=vehicle_id, status=_STATE_STOPPED)
+        # The run identity is only *active* while its process lifecycle is
+        # underway. A stopped/errored instance keeps its run id in the database
+        # telemetry it produced (historical identity), but exposing it as the
+        # current status would imply an active session.
+        active_run = instance.run_id if instance.status in (
+            _STATE_STARTING,
+            _STATE_RUNNING,
+            _STATE_STOPPING,
+        ) else None
         return SimulationStatus(
             vehicle_id=vehicle_id,
             status=instance.status,
@@ -656,6 +693,7 @@ class SimulationManager:
             seed=instance.seed,
             started_at=instance.started_at,
             error=instance.error,
+            run_id=active_run,
         )
 
     @classmethod

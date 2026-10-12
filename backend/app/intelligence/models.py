@@ -14,7 +14,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 #: Version of the Vehicle Health Context schema. Bump when the shape changes.
-CONTEXT_SCHEMA_VERSION = "1.1"
+#: 1.2 added ``analysis_scope`` (current-session vs historical window).
+CONTEXT_SCHEMA_VERSION = "1.2"
 
 #: Version of the deterministic rule/analysis engine.
 RULE_ENGINE_VERSION = "1.0"
@@ -31,6 +32,10 @@ HealthStatus = Literal["healthy", "attention", "critical", "unknown", "no_data",
 #: Amount of telemetry the health assessment is based on.
 DataSufficiency = Literal["no_data", "limited_data", "sufficient_data"]
 BaselineStatus = Literal["within", "elevated", "depressed", "insufficient_history"]
+#: Scope of an assessment's evidence: a run-scoped *current session* or a
+#: bounded *historical window* that may span several runs and legacy rows.
+#: Historical assessments never count as current health.
+AnalysisScope = Literal["current_session", "historical_window"]
 
 #: Physical units for every supported telemetry metric.
 METRIC_UNITS: dict[str, str] = {
@@ -202,3 +207,46 @@ class HealthContext(BaseModel):
     #: The best available rating while ``health_status`` is a data-state label
     #: (e.g. ``limited_data`` with a ``critical`` provisional rating).
     provisional_rating: HealthStatus | None = None
+    #: Simulator-run provenance of the evidence this assessment is based on.
+    #: ``None`` for a window/historical analysis or legacy unbounded evidence.
+    simulation_run_id: UUID | None = None
+    #: Live current-session sufficiency evaluation (present only for live
+    #: analysis): why the assessment is provisional/met and what is required.
+    live_sufficiency: LiveSufficiencyState | None = None
+    #: Scope of the assessment evidence. ``current_session`` only for a
+    #: run-scoped live evaluation; every window analysis (and any legacy
+    #: context that predates this field) is ``historical_window``.
+    analysis_scope: AnalysisScope = "historical_window"
+
+
+class LiveSufficiencyPolicy(BaseModel):
+    """Configurable gate a live current-session assessment must clear before it
+    can be treated as definitive (Phase 4.2).
+
+    All bounds are per active simulator run; historical samples never count.
+    """
+
+    minimum_samples: int = 30
+    minimum_duration_seconds: float = 30.0
+    minimum_coverage: float = 0.5
+    max_sample_age_seconds: float = 15.0
+
+
+class LiveSufficiencyState(BaseModel):
+    """Outcome of evaluating a live run against :class:`LiveSufficiencyPolicy`.
+
+    ``policy_met`` is True only when every bound holds. The individual numbers
+    are echoed so the UI can show "samples 12/30, 20s/30s observed, 40% coverage,
+    newest sample 5s old" instead of a bare yes/no.
+    """
+
+    policy_met: bool
+    sample_count: int = 0
+    required_sample_count: int = 0
+    observation_duration_seconds: float | None = None
+    required_duration_seconds: float = 0.0
+    coverage_ratio: float | None = None
+    required_coverage: float = 0.0
+    latest_sample_age_seconds: float | None = None
+    max_sample_age_seconds: float = 0.0
+    reasons: list[str] = Field(default_factory=list)

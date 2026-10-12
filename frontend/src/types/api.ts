@@ -192,6 +192,11 @@ export type HealthStatus =
   | "limited_data";
 
 export type DataSufficiency = "no_data" | "limited_data" | "sufficient_data";
+/**
+ * Scope of an assessment's evidence: a run-scoped `current_session` or a
+ * bounded `historical_window` (which may span runs and legacy rows).
+ */
+export type AnalysisScope = "current_session" | "historical_window";
 export type Severity = "info" | "warning" | "critical";
 export type TrendDirection =
   | "increasing"
@@ -313,6 +318,132 @@ export interface HealthContextResponse {
   data_sufficiency: DataSufficiency;
   provisional: boolean;
   provisional_rating: HealthStatus | null;
+  /** Simulator-run provenance of the assessment evidence (live analyses only). */
+  simulation_run_id?: UUID | null;
+  /** Live sufficiency outcome (present only for live current-session analysis). */
+  live_sufficiency?: LiveSufficiencyState | null;
+  /**
+   * Scope of the assessment evidence. `current_session` only for a run-scoped
+   * live evaluation; window analyses (and legacy snapshots) are
+   * `historical_window`. Optional so pre-1.2 snapshots still type-check.
+   */
+  analysis_scope?: AnalysisScope;
+}
+
+/* ---------------------------------------------------------------- */
+/* Live current-session health (Phase 2)                             */
+/* ---------------------------------------------------------------- */
+
+export type LiveFreshnessState =
+  | "no_session"
+  | "no_data"
+  | "collecting"
+  | "stale"
+  | "fresh";
+
+export interface LiveSufficiencyState {
+  policy_met: boolean;
+  sample_count: number;
+  required_sample_count: number;
+  observation_duration_seconds: number | null;
+  required_duration_seconds: number;
+  coverage_ratio: number | null;
+  required_coverage: number;
+  latest_sample_age_seconds: number | null;
+  max_sample_age_seconds: number;
+  reasons: string[];
+}
+
+/**
+ * Honest live view: the assessment is only present for a *fresh, sufficient*
+ * current run. A stopped vehicle, a collecting session or a stale feed never
+ * reuses an old snapshot as if it were current.
+ */
+export interface LiveHealthStatusResponse {
+  vehicle_id: UUID;
+  run_id: UUID | null;
+  simulator_state: SimulationState;
+  live_state: LiveFreshnessState;
+  latest_source_timestamp: IsoDateTime | null;
+  latest_persisted_at: IsoDateTime | null;
+  sample_count: number;
+  required_sample_count: number;
+  observation_duration_seconds: number | null;
+  required_duration_seconds: number;
+  coverage_ratio: number | null;
+  required_coverage: number;
+  latest_sample_age_seconds: number | null;
+  max_sample_age_seconds: number;
+  sample_timestamp_order_valid: boolean;
+  insufficiency_reasons: string[];
+  assessment: HealthContextResponse | null;
+  last_evaluated_at: IsoDateTime | null;
+  message: string | null;
+}
+
+/* ---------------------------------------------------------------- */
+/* Historical analytics (Phase 3)                                    */
+/* ---------------------------------------------------------------- */
+
+export type HistoricalRangePreset = "1h" | "24h" | "7d" | "30d" | "90d" | "custom";
+
+export interface HistoricalMetricSummary {
+  metric: string;
+  valid_samples: number;
+  min_value: number | null;
+  max_value: number | null;
+  mean_value: number | null;
+  median_value: number | null;
+  stddev_value: number | null;
+  delta_value: number | null;
+  first_timestamp: IsoDateTime | null;
+  last_timestamp: IsoDateTime | null;
+}
+
+export interface HistoricalSampleBucket {
+  bucket_start: IsoDateTime;
+  bucket_end: IsoDateTime;
+  sample_count: number;
+}
+
+export interface HistoricalGapSummary {
+  max_gap_seconds: number | null;
+  gap_count: number;
+  expected_interval_seconds: number;
+}
+
+export interface HistoricalRunSegment {
+  run_id: UUID | null;
+  samples: number;
+  first_timestamp: IsoDateTime | null;
+  last_timestamp: IsoDateTime | null;
+  is_legacy: boolean;
+}
+
+export interface HistoricalTrendSummaryItem {
+  metric: string;
+  direction: string;
+  strength: string | null;
+  slope: number | null;
+}
+
+export interface HistoricalAnalyticsResponse {
+  vehicle_id: UUID;
+  range: HistoricalRangePreset;
+  window_start: IsoDateTime;
+  window_end: IsoDateTime;
+  duration_seconds: number;
+  timezone: string;
+  total_samples: number;
+  earliest_sample_at: IsoDateTime | null;
+  latest_sample_at: IsoDateTime | null;
+  metrics: HistoricalMetricSummary[];
+  trends: HistoricalTrendSummaryItem[];
+  buckets: HistoricalSampleBucket[];
+  gaps: HistoricalGapSummary;
+  run_segments: HistoricalRunSegment[];
+  snapshot_count: number;
+  snapshots_present: boolean;
 }
 
 export interface HealthSnapshotItem {
@@ -326,6 +457,76 @@ export interface HealthSnapshotItem {
   health_status: HealthStatus;
   confidence: number | null;
   context_schema_version: string;
+}
+
+/* ---------------------------------------------------------------- */
+/* Persistent alerts (Phase 3 backend, Phase 4 tab)                  */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Lifecycle status. `resolved` is terminal: a recurrence after resolution
+ * creates a *new* alert rather than reopening the old one.
+ */
+export type AlertStatus = "open" | "acknowledged" | "resolved";
+
+/** One entry in an alert's append-only audit history. */
+export interface AlertEventItem {
+  id: UUID;
+  event_type: string;
+  from_status: AlertStatus | string | null;
+  to_status: AlertStatus | string | null;
+  /** `null` means the transition was automated (not a user action). */
+  actor_user_id: UUID | null;
+  note: string | null;
+  created_at: IsoDateTime;
+}
+
+/**
+ * A persistent alert as returned by the list endpoint: queryable columns only,
+ * no raw evidence (that is only on the detail response).
+ */
+export interface AlertItem {
+  id: UUID;
+  vehicle_id: UUID;
+  /** Simulator run the finding came from; alerts are current-session only. */
+  simulation_run_id: UUID | null;
+  rule_id: string;
+  category: string | null;
+  severity: Severity;
+  status: AlertStatus;
+  title: string;
+  message: string;
+  metric: string | null;
+  observed_value: number | null;
+  threshold: number | null;
+  unit: string | null;
+  confidence: number | null;
+  /** True when the alert originated from a provisional (low-confidence) finding. */
+  provisional: boolean;
+  occurrence_count: number;
+  first_seen_at: IsoDateTime;
+  last_seen_at: IsoDateTime;
+  snapshot_id: UUID | null;
+  acknowledged_at: IsoDateTime | null;
+  acknowledged_by: UUID | null;
+  acknowledge_note: string | null;
+  resolved_at: IsoDateTime | null;
+  resolved_by: UUID | null;
+  resolution_note: string | null;
+  created_at: IsoDateTime;
+  updated_at: IsoDateTime;
+}
+
+/** One alert plus its raw evidence and full audit history. */
+export interface AlertDetail extends AlertItem {
+  /** Raw finding evidence; `null` when the source finding carried none. */
+  evidence: Record<string, unknown> | null;
+  events: AlertEventItem[];
+}
+
+/** Optional note body for acknowledge/resolve. */
+export interface AlertActionRequest {
+  note?: string | null;
 }
 
 /* ---------------------------------------------------------------- */
@@ -661,6 +862,12 @@ export interface SimulationStatusResponse {
   error: string | null;
   /** Newest telemetry row for the vehicle. */
   last_telemetry_at: IsoDateTime | null;
+  /**
+   * Persistent id of the active simulator run. Present only while the run is
+   * active (starting/running/stopping); stopped/error vehicles report null.
+   * Persisted telemetry keeps the run id forever, so history stays linkable.
+   */
+  run_id: UUID | null;
 }
 
 /* ---------------------------------------------------------------- */
@@ -812,6 +1019,11 @@ export interface WorkflowStatusResponse {
   events_in_buffer: number;
   oldest_event_ts: IsoDateTime | null;
   newest_event_ts: IsoDateTime | null;
+  // Durable audit store disclosure. The buffer counted above is process-local
+  // and lost on restart; these describe the bounded persisted history.
+  event_persistence_enabled?: boolean;
+  event_retention_hours?: number | null;
+  persisted_events?: number | null;
 }
 
 export interface WorkflowEventFilters {

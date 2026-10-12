@@ -59,3 +59,4 @@ class SimulationStatusResponse(BaseModel):
     error: str | None = None
     last_telemetry_at: datetime | None = None
     correlation_id: str | None = None
+    run_id: UUID | None = None

@@ -62,6 +62,63 @@ async def test_valid_message_persisted(session_factory, sample_vehicle) -> None:
         assert record.source_event_id == "event-1"
         assert record.rpm == 2145.0
         assert record.raw_payload["event_id"] == "event-1"
+        # Legacy envelope carries no run identity: NULL, never fabricated.
+        assert record.simulation_run_id is None
+
+
+async def test_run_id_persisted_from_envelope(session_factory, sample_vehicle) -> None:
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    vehicle_id = sample_vehicle["id"]
+    run_id = uuid4()
+    payload = json.dumps(
+        {
+            "schema_version": 2,
+            "event_id": "run-1",
+            "vehicle_id": vehicle_id,
+            "simulation_run_id": str(run_id),
+            "timestamp": "2026-09-20T10:00:00+00:00",
+            "telemetry": {"rpm": 2100.0},
+        }
+    ).encode()
+
+    await subscriber._handle_message(mqtt_message(f"vehicles/{vehicle_id}/telemetry", payload))
+
+    async with session_factory() as session:
+        record = await session.scalar(select(TelemetryRecord))
+        assert record.simulation_run_id == run_id
+        assert record.raw_payload["simulation_run_id"] == str(run_id)
+
+
+async def test_run_id_persisted_and_dropped_on_stop(session_factory, sample_vehicle) -> None:
+    """Samples from run A and run B coexist; legacy samples stay NULL."""
+    subscriber = MQTTSubscriber(get_settings(), session_factory)
+    vehicle_id = sample_vehicle["id"]
+    run_a, run_b = uuid4(), uuid4()
+    topic = f"vehicles/{vehicle_id}/telemetry"
+
+    def run_envelope(event_id: str, run: uuid4) -> bytes:
+        return json.dumps(
+            {
+                "schema_version": 2,
+                "event_id": event_id,
+                "vehicle_id": vehicle_id,
+                "simulation_run_id": str(run),
+                "timestamp": "2026-09-20T10:00:00+00:00",
+                "telemetry": {"rpm": 2100.0},
+            }
+        ).encode()
+
+    await subscriber._handle_message(mqtt_message(topic, run_envelope("a-1", run_a)))
+    await subscriber._handle_message(mqtt_message(topic, run_envelope("b-1", run_b)))
+    await subscriber._handle_message(mqtt_message(topic, envelope_json(vehicle_id, "legacy-1")))
+
+    assert await _record_count(session_factory) == 3
+    async with session_factory() as session:
+        rows = (await session.scalars(select(TelemetryRecord))).all()
+        by_event = {row.source_event_id: row for row in rows}
+        assert by_event["a-1"].simulation_run_id == run_a
+        assert by_event["b-1"].simulation_run_id == run_b
+        assert by_event["legacy-1"].simulation_run_id is None
 
 
 async def test_duplicate_message_skipped(session_factory, sample_vehicle) -> None:

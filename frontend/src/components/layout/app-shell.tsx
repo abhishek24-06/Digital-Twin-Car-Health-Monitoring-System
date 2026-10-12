@@ -7,7 +7,6 @@ import { Activity, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { NavLinks } from "@/components/layout/nav-items";
 import { VehicleSelector } from "@/components/layout/vehicle-selector";
 import { ThemeToggle, UserMenu } from "@/components/layout/user-menu";
-import { WorkflowStreamProvider } from "@/components/workflow/workflow-stream-provider";
 import { Button } from "@/components/ui/button";
 import { useAuthGuard } from "@/hooks/use-auth-guard";
 import { ErrorState } from "@/components/states/feedback";
@@ -194,9 +193,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  if (status !== "authenticated") return shell;
-
-  return <WorkflowStreamProvider>{shell}</WorkflowStreamProvider>;
+  // The workflow stream provider lives at the `(app)` layout boundary (see
+  // `src/app/(app)/layout.tsx`), so the shell itself never conditionally mounts
+  // or omits it: a workflow consumer rendered anywhere in this subtree is
+  // always inside the provider, even during auth-state transitions.
+  return shell;
 }
 
 function AppShellSkeleton() {

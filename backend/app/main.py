@@ -38,6 +38,7 @@ from app.core.exceptions import (
     SimulationError,
 )
 from app.core.logging import configure_logging
+from app.dependencies.database import get_alert_service
 from app.rag.errors import (
     RAGDocumentUnavailableError,
     RAGIngestionFailureError,
@@ -47,6 +48,8 @@ from app.rag.errors import (
 from app.services.health_monitor import HealthMonitorService, run_health_monitor_loop
 from app.services.simulation_manager import get_simulation_manager
 from app.services.subscriber_manager import get_subscriber_supervisor
+from app.services.workflow_event_bus import get_workflow_event_bus
+from app.services.workflow_event_persistence import WorkflowEventPersister
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -65,6 +68,20 @@ async def lifespan(app: FastAPI):
         )
 
     monitor_task = _start_health_monitor()
+
+    if settings.workflow_event_persistence_enabled:
+        # Durable audit copy for the workflow monitor; best-effort and
+        # fire-and-forget so it can never block the live event bus.
+        get_workflow_event_bus().set_persister(
+            WorkflowEventPersister(
+                get_session_factory(),
+                retention_hours=settings.workflow_event_retention_hours,
+            ).persist
+        )
+        logger.info(
+            "workflow event persistence enabled (retention=%sh)",
+            settings.workflow_event_retention_hours,
+        )
 
     simulation_manager = get_simulation_manager()
     stale = await simulation_manager.cleanup_stale()
@@ -103,7 +120,16 @@ def _start_health_monitor() -> asyncio.Task[None] | None:
     """
     if not settings.health_monitor_enabled:
         return None
-    monitor = HealthMonitorService(get_session_factory())
+    simulation_manager = get_simulation_manager()
+    # The monitor evaluates *current sessions only*: it resolves the active
+    # simulator run per vehicle and skips vehicles with no active run, so a
+    # stopped vehicle's last snapshot is never overwritten by a stale-window
+    # assessment across sessions.
+    monitor = HealthMonitorService(
+        get_session_factory(),
+        run_resolver=lambda vehicle_id: simulation_manager.active_run_id(vehicle_id),
+        alert_service_factory=get_alert_service,
+    )
     task = asyncio.create_task(
         run_health_monitor_loop(monitor, interval_seconds=settings.health_monitor_interval_seconds),
         name="health-monitor",
