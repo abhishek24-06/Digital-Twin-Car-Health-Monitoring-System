@@ -6,7 +6,7 @@ Convenience wrapper for ``make mqtt-integration``. It only supplies a *default*
 ``digital_twin_mqtt_test``, fail-closed otherwise). Any extra CLI arguments are
 forwarded to pytest.
 
-See ``docs/mqtt-integration-testing.md``.
+See `SYSTEM_DOCUMENTATION.md` (§14, MQTT integration tests).
 """
 
 from __future__ import annotations

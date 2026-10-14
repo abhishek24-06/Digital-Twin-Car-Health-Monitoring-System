@@ -107,7 +107,7 @@ mqtt-broker:
 
 # Phase C integration suite: real isolated Mosquitto + disposable database.
 # Expects a local Mosquitto install; the disposable database URL defaults to a
-# loopback `digital_twin_mqtt_test`. See docs/mqtt-integration-testing.md.
+# loopback `digital_twin_mqtt_test`. See SYSTEM_DOCUMENTATION.md §14.
 mqtt-integration:
 	$(PY) -m scripts.run_mqtt_integration
 

@@ -1,7 +1,7 @@
 """Fixtures for the Phase C MQTT integration suite.
 
 This suite runs against a **real isolated Mosquitto broker** and a **dedicated
-disposable PostgreSQL database** (see ``docs/mqtt-integration-testing.md``).
+disposable PostgreSQL database** (see `SYSTEM_DOCUMENTATION.md` §14).
 
 Safety contract
 ---------------
@@ -63,7 +63,7 @@ def _require_isolated_database_url() -> str:
     if not url:
         pytest.skip(
             f"{MQTT_TEST_DATABASE_URL_ENV} is not set; the MQTT integration suite needs an "
-            "explicit disposable database (see docs/mqtt-integration-testing.md)."
+            "explicit disposable database (see SYSTEM_DOCUMENTATION.md §14)."
         )
 
     parsed = urlparse(url)
