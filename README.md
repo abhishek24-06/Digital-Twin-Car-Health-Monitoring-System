@@ -35,7 +35,7 @@ flowchart LR
     BUS["Workflow event bus<br/>(in-memory + audit table)"] --> FE
 ```
 
-Component details: [`docs/SYSTEM_ARCHITECTURE.md`](docs/SYSTEM_ARCHITECTURE.md). Full audit: [`docs/SYSTEM_AUDIT.md`](docs/SYSTEM_AUDIT.md).
+Component details: [`SYSTEM_DOCUMENTATION.md`](SYSTEM_DOCUMENTATION.md) (architecture, API, health engine, RAG, frontend, security, evaluation).
 
 ## Technology stack (verified from manifests/lockfiles)
 
@@ -60,7 +60,7 @@ Real captures of the working app (demo data). Each depicts a feature; behavior i
 | ![Live telemetry chart with metric toggles](docs/assets/vehicle-telemetry-live-chart.png) | **Telemetry tab** — live panel (frame clock, buffered count), per-metric toggles, multi-series chart, newest-first samples table. |
 | ![Health pipeline stages in the Workflow Monitor](docs/assets/workflow-health-pipeline.png) | **Workflow Monitor → Health** — the 8 evaluation stages with statuses (score 80.0, confidence 0.99, provisional warning shown honestly). |
 | ![Alert log with occurrence counts](docs/assets/vehicle-alerts-log.png) | **Alerts tab** — persistent alerts with severity, open status, recurrence counts (×9–×12), and acknowledge/resolve actions. |
-| ![RAG ingestion pipeline for a real document](docs/assets/workflow-rag-ingestion-pipeline.png) | **Workflow Monitor → RAG Ingestion** — a real `.docx` flowing through parse → 39,911 chars → 67 chunks → embeddings → pgvector. |
+| ![RAG ingestion pipeline for a real document](docs/assets/workflow-rag-ingestion-pipeline.jpeg) | **Workflow Monitor → RAG Ingestion** — a real `.docx` flowing through parse → 39,911 chars → 67 chunks → embeddings → pgvector. |
 | ![Simulation control with per-vehicle pipelines](docs/assets/simulation-control-vehicles-pipelines.jpeg) | **Simulation Control** — per-vehicle scenario/interval controls and live 8-stage pipeline steppers (running + stopped vehicles). |
 | ![Admin RAG corpus health and ingest form](docs/assets/admin-rag-corpus-ingest.jpeg) | **Admin RAG corpus** — corpus health (5 documents, 372 chunks, dim 1024) and the metadata-driven ingest form. |
 
@@ -77,7 +77,7 @@ Real captures of the working app (demo data). Each depicts a feature; behavior i
 ```
 backend/                 FastAPI app (app/), simulator/, alembic/ (11 migrations), tests/, scripts/
 frontend/src/            Next.js App Router: app/(app)/, components/, hooks/, services/, lib/, stores/
-docs/                    Architecture, audit, interview prep, runbooks, research, audits/, archive/
+docs/                    Research evaluations, screenshot assets (`assets/`)
 scripts/                 dt-start.ps1 / dt-status.ps1 / dt-stop.ps1 (local Mosquitto + API + subscriber)
 tasks/                   Historical phased checklists (archived, not live trackers)
 data/documents/          Sample RAG corpus documents
@@ -131,7 +131,7 @@ BACKEND_API_URL=http://localhost:8000/api/v1
   cd backend
   .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
   ```
-- Browser E2E uses its own disposable database (`digital_twin_browser_test`) and isolated ports — see `frontend/e2e/README.md`:
+- Browser E2E uses its own disposable database (`digital_twin_browser_test`) and isolated ports (`npm run test:e2e` boots both servers itself):
   ```powershell
   cd frontend
   npm run test:e2e
@@ -161,6 +161,30 @@ npm run test:e2e    # playwright (isolated stack)
 
 API surface: `GET /api/v1/health`, `/health/db`, `/health/deployment`, auth (`/auth/*`), vehicles, telemetry (+`/stream`), health (`/analyze`, `/history`, `/live`), historical-analytics, agent (`/query`, `/events/critical`, `/dashboard`, `/diagnoses*`), simulation, RAG (`/rag/search`, `/rag/health`), admin RAG documents, alerts, workflow (`/events/recent`, `/events/stream`, `/state`, `/status`). Live OpenAPI: `http://localhost:8000/docs`.
 
+## Evaluation and analysis (synthetic — not real-world validation)
+
+The frozen protocol (`docs/research/accuracy_evaluation_plan.md`) tests the deterministic pipeline against harness-injected faults on disposable infrastructure. Headlines from `docs/research/evaluation_final_report.md`:
+
+| Question | Result |
+|---|---|
+| Fault detection, steady view (20 episodes) | accuracy / macro-F1 **1.000**; normal control raised 0 alert-worthy findings |
+| Full view (warm-up included) | accuracy **0.250** — cold-start warm-up trips rapid-rise rules in every episode (reported, not suppressed) |
+| Alert lifecycle (12 episodes) | episode recall 100%, precision 75%; 0 duplicate rows; publish→alert p50 21.8 ms |
+| Latency | publish→persist p50 3.9 ms; engine analyse p50 1.2 ms; monitor pass p50 16.1 ms |
+| AI-diagnosis correctness | **NOT EVALUABLE** — no expert-labelled reference diagnoses exist |
+| Robustness | 10/10 injected-fault cases (duplicates, gaps, malformed payloads, DB failure, broker restart) |
+
+![Health scores by injected fault family, steady vs full view](docs/research/results/synthetic-eda-v1/figures/fig06_health_scores.png)
+*Thermal episodes score 60/attention; electrical and load episodes score 70–90; the full view exposes warm-up sensitivity.*
+
+![Detection confusion by analysis view](docs/research/results/synthetic-eda-v1/figures/fig07_rq1_confusion.png)
+*Perfect diagonal on steady (acc 1.0, macro-F1 1.0); everything collapses to “thermal” on full (acc 0.25) from cold-start rapid-rise transients.*
+
+![Pipeline latency distributions in milliseconds](docs/research/results/synthetic-eda-v1/figures/fig09_latency.png)
+*Wall-clock latencies (log scale): ingest, engine analysis, monitor pass (n=180), publish-to-alert (n=9).*
+
+All figures: `docs/research/results/synthetic-eda-v1/figures/` (11 plots) and `docs/research/results/synthetic-pipeline-v1/figures/`; metrics and provenance JSON sit beside each report. Reference is the injected scenario — none of this establishes real-world accuracy.
+
 ## Troubleshooting
 
 | Symptom | Likely cause / fix |
@@ -189,7 +213,7 @@ API surface: `GET /api/v1/health`, `/health/db`, `/health/deployment`, auth (`/a
 
 ## Roadmap
 
-Prioritized, proposal-status items live in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md); audit-ranked improvements in [`docs/SYSTEM_AUDIT.md`](docs/SYSTEM_AUDIT.md). Near-term: dependency advisory fixes, boundary-rule tests, agent cooldown tests, REST/MQTT validation alignment, an isolated load harness with SLOs, manufacturer-threshold calibration.
+Prioritized, proposal-status improvements: dependency advisory fixes, boundary-rule tests, agent cooldown tests, REST/MQTT validation alignment, an isolated load harness with SLOs, manufacturer-threshold calibration. Full detail: [`SYSTEM_DOCUMENTATION.md`](SYSTEM_DOCUMENTATION.md) §18.
 
 ## Contribution and license
 
