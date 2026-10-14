@@ -64,6 +64,15 @@ export function LiveTelemetryFeed({
   const now = useNow(1_000);
   const [fallbackSample, setFallbackSample] = React.useState<TelemetryResponse | null>(null);
 
+  // A fallback snapshot belongs to the vehicle it was polled for. Forget it
+  // while rendering on switch, so the next vehicle never briefly shows
+  // another vehicle's reading before its first stream frame arrives.
+  const [fallbackVehicle, setFallbackVehicle] = React.useState(vehicleId);
+  if (fallbackVehicle !== vehicleId) {
+    setFallbackVehicle(vehicleId);
+    setFallbackSample(null);
+  }
+
   const streamDown = status === "error" || status === "reconnecting";
 
   React.useEffect(() => {

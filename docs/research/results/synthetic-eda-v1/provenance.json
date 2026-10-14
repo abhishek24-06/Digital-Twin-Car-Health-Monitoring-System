@@ -1,0 +1,51 @@
+{
+  "analysis": "exploratory data analysis",
+  "status": "EXECUTED",
+  "provenance": "SIMULATED telemetry + MEASURED pipeline behaviour",
+  "generated_at": "2026-10-13T16:56:24.194979+00:00",
+  "command": "python -m evaluation.eda --force",
+  "inputs": {
+    "synthetic-scenarios-v2/dataset.json": {
+      "path": "docs/research/results/synthetic-scenarios-v2/dataset.json",
+      "sha256": "33bb8176d2e2be3939f0f963add8678b7416bc43480a7a8f074f98c78da1bf36",
+      "bytes": 1879616
+    },
+    "synthetic-scenarios-v2/metrics.json": {
+      "path": "docs/research/results/synthetic-scenarios-v2/metrics.json",
+      "sha256": "870c55497874f57aa2926de9baccf6fdafc491a8e58479786c0feb71ac28e9ff",
+      "bytes": 65216
+    },
+    "synthetic-pipeline-v1/metrics.json": {
+      "path": "docs/research/results/synthetic-pipeline-v1/metrics.json",
+      "sha256": "6cc45185f617232d599d67845ce6a7cc84a98c4d302370869761162bf6a5ed04",
+      "bytes": 117943
+    }
+  },
+  "figures": [
+    "fig01_feature_separability.png",
+    "fig02_scenario_profile.png",
+    "fig03_correlation.png",
+    "fig04_warmup.png",
+    "fig05_feature_distributions.png",
+    "fig06_health_scores.png",
+    "fig07_rq1_confusion.png",
+    "fig08_findings.png",
+    "fig09_latency.png",
+    "fig10_alert_outcomes.png",
+    "fig11_robustness.png"
+  ],
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.14.7",
+    "matplotlib": "3.11.2",
+    "seaborn": "0.13.2",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6"
+  },
+  "limitations": [
+    "Synthetic telemetry from the in-repo simulator; not real-world data.",
+    "Reference labels are the injected scenarios, not independent sensor labels.",
+    "Descriptive only: no hypothesis test, no p-value, no significance claim.",
+    "Post-hoc and outside the frozen pre-registration; never a scored result."
+  ]
+}

@@ -83,6 +83,13 @@ function presetFor(status: number): Preset | null {
         message: "The item may have been removed, or the link is out of date.",
         icon: <Inbox className="size-5" aria-hidden />,
       };
+    case 429:
+      return {
+        title: "Too many requests",
+        message:
+          "You're asking for reports faster than the server allows. Wait a few seconds, then try again.",
+        icon: <AlertTriangle className="size-5" aria-hidden />,
+      };
     case 502:
       return {
         title: "AI provider unavailable",

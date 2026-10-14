@@ -335,9 +335,9 @@ function AssessmentSections({ context }: { context: HealthContextResponse }) {
                 <div className="flex items-center gap-1">
                   <dt className="text-ink-subtle">Coverage</dt>
                   <dd className="tabular">
-                    {context.data_quality.duration_seconds === null
+                    {context.data_quality.coverage_ratio === null
                       ? "—"
-                      : `${context.data_quality.duration_seconds.toFixed(0)}s`}
+                      : `${(context.data_quality.coverage_ratio * 100).toFixed(0)}%`}
                   </dd>
                 </div>
               </dl>

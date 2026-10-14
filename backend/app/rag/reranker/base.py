@@ -16,6 +16,8 @@ Nothing here loads a model or touches the network at import time.
 
 from __future__ import annotations
 
+import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -26,6 +28,8 @@ except Exception:  # pragma: no cover - env specific
 
 from app.rag.config import get_rag_settings
 from app.rag.errors import RAGRerankerModelUnavailableError
+
+logger = logging.getLogger(__name__)
 
 
 class RerankerAdapter(ABC):
@@ -80,23 +84,52 @@ def apply_min_score(scores: list[float], min_score: float) -> list[float]:
     return [s if threshold_filter(s, min_score) else 0.0 for s in scores]
 
 
+#: Process-wide adapter cache, keyed by the resolved configuration (see
+#: :func:`get_reranker_adapter`). Construction failures are never cached, so a
+#: missing model keeps raising (and the service keeps degrading to hybrid
+#: order) instead of poisoning later requests.
+_ADAPTER_CACHE: dict[tuple[Any, ...], RerankerAdapter] = {}
+
+
 def get_reranker_adapter(*, force_stub: bool = False) -> RerankerAdapter:
-    """Factory: settings decide adapter; stub is forced when RAG off/for tests."""
+    """Factory: settings decide adapter; stub is forced when RAG off/for tests.
+
+    Adapters are cached process-wide by configuration: the cross-encoder
+    weights load once and are shared by every request. Each request builds its
+    own ``RAGService``, so without this cache every query paid a full
+    multi-GB weight reload on the event loop before inference even started
+    (observed: ~114 s rerank per query).
+    """
     settings = get_rag_settings()
     if force_stub or not settings.rag_enabled or settings.rag_reranker_model == "stub":
-        return StubRerankerAdapter(min_score=settings.rag_min_rerank_score)
-    try:
-        model_name = settings.rag_reranker_model
-        return _SentenceTransformerReranker(
-            model_name,
-            settings.rag_min_rerank_score,
-            max_length=settings.rag_reranker_max_length,
-            device=settings.rag_reranker_device,
-        )
-    except Exception as exc:
-        raise RAGRerankerModelUnavailableError(
-            f"reranker {settings.rag_reranker_model} unavailable"
-        ) from exc
+        key = ("stub", settings.rag_min_rerank_score)
+        adapter = _ADAPTER_CACHE.get(key)
+        if adapter is None:
+            adapter = StubRerankerAdapter(min_score=settings.rag_min_rerank_score)
+            _ADAPTER_CACHE[key] = adapter
+        return adapter
+    key = (
+        "bge",
+        settings.rag_reranker_model,
+        settings.rag_min_rerank_score,
+        settings.rag_reranker_max_length,
+        settings.rag_reranker_device,
+    )
+    adapter = _ADAPTER_CACHE.get(key)
+    if adapter is None:
+        try:
+            adapter = _SentenceTransformerReranker(
+                settings.rag_reranker_model,
+                settings.rag_min_rerank_score,
+                max_length=settings.rag_reranker_max_length,
+                device=settings.rag_reranker_device,
+            )
+        except Exception as exc:
+            raise RAGRerankerModelUnavailableError(
+                f"reranker {settings.rag_reranker_model} unavailable"
+            ) from exc
+        _ADAPTER_CACHE[key] = adapter
+    return adapter
 
 
 class _SentenceTransformerReranker(RerankerAdapter):
@@ -125,8 +158,14 @@ class _SentenceTransformerReranker(RerankerAdapter):
             kwargs: dict[str, Any] = {"max_length": self.max_length}
             if self.device != "auto":
                 kwargs["device"] = self.device
+            started = time.perf_counter()
             self._model = CrossEncoder(self.model_name, **kwargs)
             self._activation = torch.nn.Sigmoid()
+            logger.info(
+                "reranker weights loaded: model=%s elapsed_ms=%.0f",
+                self.model_name,
+                (time.perf_counter() - started) * 1000,
+            )
         return self._model
 
     def rerank(self, query: str, candidates: list[str]) -> list[float]:

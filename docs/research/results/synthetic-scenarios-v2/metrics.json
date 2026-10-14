@@ -1,0 +1,2097 @@
+{
+  "dataset_id": "synthetic-scenarios-v2",
+  "generated_at": "2026-10-13T15:05:10.440716+00:00",
+  "provenance_tag": "SIMULATED",
+  "commands": [
+    "python -m evaluation all --dataset synthetic-scenarios-v2 --scenarios normal high_temperature low_battery high_engine_load --seeds 1 2 3 4 5"
+  ],
+  "manifest": {
+    "dataset_id": "synthetic-scenarios-v2",
+    "generator": "backend/simulator/telemetry_generator.SimulationEngine (unmodified)",
+    "description": "Deterministic synthetic fault episodes from the in-repo simulator.",
+    "reference_source": "harness-injected-scenario",
+    "label_method": "injected-physical-condition",
+    "label_version": "1.0",
+    "code_revision": "66674bdccc1b8c6d56cd813cc2bd1d0a2e895f31",
+    "created_at": "2026-10-13T15:05:10.299460Z",
+    "limitations": [
+      "SYNTHETIC ONLY: telemetry comes from the in-repo simulator; this is not real-world validation.",
+      "No independent continuous health reference exists; RQ2 is ordinal discrimination only (no MAE/RMSE/R2).",
+      "No expert-labelled reference diagnoses exist; RQ5 correctness is NOT EVALUABLE (only the grounding contract can be measured).",
+      "The analyzer is deterministic rule logic, not a learned classifier; 'accuracy' means agreement with injected conditions.",
+      "The 'full' view includes cold-start warm-up and is expected to raise false-positive rapid-rise findings.",
+      "Only four simulator scenarios exist; rules without an injected positive control cannot be validated here."
+    ],
+    "episodes": [
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "normal-seed1",
+        "scenario": "normal",
+        "seed": 1,
+        "run_id": "8faf594c-f68e-519f-83b1-b98e82429d7f",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.051573Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "normal-seed2",
+        "scenario": "normal",
+        "seed": 2,
+        "run_id": "a7b31282-8b6d-50f0-9fae-5a27e64c0deb",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.062362Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "normal-seed3",
+        "scenario": "normal",
+        "seed": 3,
+        "run_id": "56318e5d-b33c-5531-8b71-686e50ffdfa8",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.073166Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "normal-seed4",
+        "scenario": "normal",
+        "seed": 4,
+        "run_id": "307be250-2497-5b9b-bbec-aa022a307ded",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.083845Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "normal-seed5",
+        "scenario": "normal",
+        "seed": 5,
+        "run_id": "273e0ff6-9a55-5aae-98fb-a392357b6169",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.094774Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_temperature-seed1",
+        "scenario": "high_temperature",
+        "seed": 1,
+        "run_id": "28ebe0a4-5888-52ab-b658-1ef7c6dfa7f1",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.105825Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_temperature-seed2",
+        "scenario": "high_temperature",
+        "seed": 2,
+        "run_id": "e264da28-5095-5b3b-9789-464d1d25b70a",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.117009Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_temperature-seed3",
+        "scenario": "high_temperature",
+        "seed": 3,
+        "run_id": "64f56a08-e10b-55c0-ba26-14d87462da17",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.127740Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_temperature-seed4",
+        "scenario": "high_temperature",
+        "seed": 4,
+        "run_id": "f79f7f0d-e775-5475-83cd-9cb16a7a8ff0",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.139036Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_temperature-seed5",
+        "scenario": "high_temperature",
+        "seed": 5,
+        "run_id": "5e69e475-b9f7-5016-bac3-cc1a374206bc",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.150507Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "low_battery-seed1",
+        "scenario": "low_battery",
+        "seed": 1,
+        "run_id": "4e445d40-f2d6-5e77-9133-cbdacb5be211",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.161734Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "low_battery-seed2",
+        "scenario": "low_battery",
+        "seed": 2,
+        "run_id": "f42e24b9-6233-5e8a-b25f-10e51461157d",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.173001Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "low_battery-seed3",
+        "scenario": "low_battery",
+        "seed": 3,
+        "run_id": "ff6a41cc-2eb1-56f5-a5fc-d176146d7a7f",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.183959Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "low_battery-seed4",
+        "scenario": "low_battery",
+        "seed": 4,
+        "run_id": "5b0041c4-ad55-53ed-bdc3-5eb036a831ed",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.194697Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "low_battery-seed5",
+        "scenario": "low_battery",
+        "seed": 5,
+        "run_id": "1c3f0764-f76d-53b8-a8a9-abb91bf085d1",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.207728Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_engine_load-seed1",
+        "scenario": "high_engine_load",
+        "seed": 1,
+        "run_id": "7dc780d5-c1bc-55f8-a913-f2bf6798bae4",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.218320Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_engine_load-seed2",
+        "scenario": "high_engine_load",
+        "seed": 2,
+        "run_id": "6b20ffeb-4368-55a9-bdf4-9a32ec85c099",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.229225Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_engine_load-seed3",
+        "scenario": "high_engine_load",
+        "seed": 3,
+        "run_id": "fc1db181-6d00-58ed-86c6-16dcab0539ff",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.239893Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_engine_load-seed4",
+        "scenario": "high_engine_load",
+        "seed": 4,
+        "run_id": "de3d9b5e-92da-574b-a1cc-d273340765c5",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.250442Z"
+      },
+      {
+        "dataset_id": "synthetic-scenarios-v2",
+        "episode_id": "high_engine_load-seed5",
+        "scenario": "high_engine_load",
+        "seed": 5,
+        "run_id": "1c7e65e6-fb4b-5703-b51b-8a8a01e7794b",
+        "duration_seconds": 180.0,
+        "interval_seconds": 1.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "reference_source": "harness-injected-scenario",
+        "label_method": "injected-physical-condition",
+        "label_version": "1.0",
+        "provenance": "SIMULATED",
+        "limitations": [
+          "synthetic telemetry from the in-repo simulator; not real-world validation",
+          "reference label is the scenario chosen by the harness, not an independent sensor"
+        ],
+        "created_at": "2026-10-13T15:05:10.261086Z"
+      }
+    ]
+  },
+  "views": {
+    "steady": {
+      "n_episodes": 20,
+      "rq1_detection": {
+        "n_episodes": 20,
+        "labels": [
+          "thermal",
+          "electrical",
+          "engine_load",
+          "engine_speed",
+          "fuel",
+          "none"
+        ],
+        "confusion_matrix": {
+          "thermal": {
+            "thermal": 5,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "electrical": {
+            "thermal": 0,
+            "electrical": 5,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "engine_load": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 5,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "engine_speed": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "fuel": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "none": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 5
+          }
+        },
+        "per_label": {
+          "thermal": {
+            "tp": 5.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 15.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 5.0,
+            "predicted": 5.0
+          },
+          "electrical": {
+            "tp": 5.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 15.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 5.0,
+            "predicted": 5.0
+          },
+          "engine_load": {
+            "tp": 5.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 15.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 5.0,
+            "predicted": 5.0
+          },
+          "engine_speed": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 20.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0.0,
+            "predicted": 0.0
+          },
+          "fuel": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 20.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0.0,
+            "predicted": 0.0
+          },
+          "none": {
+            "tp": 5.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 15.0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 5.0,
+            "predicted": 5.0
+          }
+        },
+        "accuracy": 1.0,
+        "macro_f1": 1.0,
+        "weighted_f1": 1.0
+      },
+      "rq1_per_scenario": {
+        "normal": {
+          "n_episodes": 5,
+          "reference_family": "none",
+          "detected_expected": 0,
+          "false_positive_episodes": 0,
+          "hit_rules": {},
+          "alert_worthy_rule_counts": {}
+        },
+        "high_temperature": {
+          "n_episodes": 5,
+          "reference_family": "thermal",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "COOLANT_TEMP_HIGH": 5,
+            "OIL_TEMP_HIGH": 5
+          },
+          "alert_worthy_rule_counts": {
+            "COOLANT_TEMP_HIGH": 5,
+            "OIL_TEMP_HIGH": 5
+          }
+        },
+        "low_battery": {
+          "n_episodes": 5,
+          "reference_family": "electrical",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "BATTERY_VOLTAGE_LOW": 5
+          },
+          "alert_worthy_rule_counts": {
+            "BATTERY_VOLTAGE_LOW": 5
+          }
+        },
+        "high_engine_load": {
+          "n_episodes": 5,
+          "reference_family": "engine_load",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "ENGINE_LOAD_HIGH": 5
+          },
+          "alert_worthy_rule_counts": {
+            "ENGINE_LOAD_HIGH": 5
+          }
+        }
+      },
+      "rq4_compute_latency_ms": {
+        "note": "MEASURED software compute latency of HealthAnalysisEngine.analyze per episode (analysis_duration_ms). Publish-to-alert pipeline latency requires the isolated MQTT+DB harness and is NOT measured here.",
+        "analysis": {
+          "count": 20,
+          "min": 1.368,
+          "p50": 1.395,
+          "p95": 1.47,
+          "p95_justified": true,
+          "p99": null,
+          "p99_justified": false,
+          "max": 1.805,
+          "mean": 1.425
+        }
+      },
+      "rq2_health": {
+        "note": "No independent continuous health reference exists; regression metrics (MAE/RMSE/R2) are intentionally NOT computed. AUC is ordinal discrimination of the injected condition, not accuracy. The status confusion is descriptive and partly circular (status buckets and rules share thresholds).",
+        "auc_anomaly_vs_normal": 1.0,
+        "auc_thermal_vs_nonthermal": 1.0,
+        "n_anomaly": 15,
+        "n_normal": 5,
+        "score_by_reference_family": {
+          "thermal": {
+            "count": 5,
+            "min": 60.0,
+            "median": 60.0,
+            "max": 60.0,
+            "mean": 60.0
+          },
+          "electrical": {
+            "count": 5,
+            "min": 90.0,
+            "median": 90.0,
+            "max": 90.0,
+            "mean": 90.0
+          },
+          "engine_load": {
+            "count": 5,
+            "min": 90.0,
+            "median": 90.0,
+            "max": 90.0,
+            "mean": 90.0
+          },
+          "none": {
+            "count": 5,
+            "min": 100.0,
+            "median": 100.0,
+            "max": 100.0,
+            "mean": 100.0
+          }
+        },
+        "status_confusion_partly_circular": {
+          "none": {
+            "healthy": 5
+          },
+          "thermal": {
+            "attention": 5
+          },
+          "electrical": {
+            "healthy": 5
+          },
+          "engine_load": {
+            "healthy": 5
+          }
+        }
+      }
+    },
+    "full": {
+      "n_episodes": 20,
+      "rq1_detection": {
+        "n_episodes": 20,
+        "labels": [
+          "thermal",
+          "electrical",
+          "engine_load",
+          "engine_speed",
+          "fuel",
+          "none"
+        ],
+        "confusion_matrix": {
+          "thermal": {
+            "thermal": 5,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "electrical": {
+            "thermal": 5,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "engine_load": {
+            "thermal": 5,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "engine_speed": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "fuel": {
+            "thermal": 0,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          },
+          "none": {
+            "thermal": 5,
+            "electrical": 0,
+            "engine_load": 0,
+            "engine_speed": 0,
+            "fuel": 0,
+            "none": 0
+          }
+        },
+        "per_label": {
+          "thermal": {
+            "tp": 5.0,
+            "fp": 15.0,
+            "fn": 0.0,
+            "tn": 0.0,
+            "precision": 0.25,
+            "recall": 1.0,
+            "f1": 0.4,
+            "support": 5.0,
+            "predicted": 20.0
+          },
+          "electrical": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 5.0,
+            "tn": 15.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5.0,
+            "predicted": 0.0
+          },
+          "engine_load": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 5.0,
+            "tn": 15.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5.0,
+            "predicted": 0.0
+          },
+          "engine_speed": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 20.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0.0,
+            "predicted": 0.0
+          },
+          "fuel": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 0.0,
+            "tn": 20.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0.0,
+            "predicted": 0.0
+          },
+          "none": {
+            "tp": 0.0,
+            "fp": 0.0,
+            "fn": 5.0,
+            "tn": 15.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 5.0,
+            "predicted": 0.0
+          }
+        },
+        "accuracy": 0.25,
+        "macro_f1": 0.1,
+        "weighted_f1": 0.1
+      },
+      "rq1_per_scenario": {
+        "normal": {
+          "n_episodes": 5,
+          "reference_family": "none",
+          "detected_expected": 0,
+          "false_positive_episodes": 5,
+          "hit_rules": {},
+          "alert_worthy_rule_counts": {
+            "RAPID_COOLANT_RISE": 5,
+            "RAPID_OIL_TEMP_RISE": 5
+          }
+        },
+        "high_temperature": {
+          "n_episodes": 5,
+          "reference_family": "thermal",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "COOLANT_TEMP_HIGH": 5,
+            "OIL_TEMP_HIGH": 5
+          },
+          "alert_worthy_rule_counts": {
+            "COOLANT_TEMP_HIGH": 5,
+            "OIL_TEMP_HIGH": 5,
+            "RAPID_COOLANT_RISE": 5,
+            "RAPID_OIL_TEMP_RISE": 5
+          }
+        },
+        "low_battery": {
+          "n_episodes": 5,
+          "reference_family": "electrical",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "BATTERY_VOLTAGE_LOW": 5
+          },
+          "alert_worthy_rule_counts": {
+            "BATTERY_VOLTAGE_LOW": 5,
+            "RAPID_COOLANT_RISE": 5,
+            "RAPID_OIL_TEMP_RISE": 5
+          }
+        },
+        "high_engine_load": {
+          "n_episodes": 5,
+          "reference_family": "engine_load",
+          "detected_expected": 5,
+          "false_positive_episodes": 0,
+          "hit_rules": {
+            "ENGINE_LOAD_HIGH": 5
+          },
+          "alert_worthy_rule_counts": {
+            "ENGINE_LOAD_HIGH": 5,
+            "RAPID_COOLANT_RISE": 5,
+            "RAPID_OIL_TEMP_RISE": 5
+          }
+        }
+      },
+      "rq4_compute_latency_ms": {
+        "note": "MEASURED software compute latency of HealthAnalysisEngine.analyze per episode (analysis_duration_ms). Publish-to-alert pipeline latency requires the isolated MQTT+DB harness and is NOT measured here.",
+        "analysis": {
+          "count": 20,
+          "min": 3.533,
+          "p50": 3.697,
+          "p95": 4.1,
+          "p95_justified": true,
+          "p99": null,
+          "p99_justified": false,
+          "max": 4.316,
+          "mean": 3.775
+        }
+      },
+      "rq2_health": {
+        "note": "No independent continuous health reference exists; regression metrics (MAE/RMSE/R2) are intentionally NOT computed. AUC is ordinal discrimination of the injected condition, not accuracy. The status confusion is descriptive and partly circular (status buckets and rules share thresholds).",
+        "auc_anomaly_vs_normal": 1.0,
+        "auc_thermal_vs_nonthermal": 1.0,
+        "n_anomaly": 15,
+        "n_normal": 5,
+        "score_by_reference_family": {
+          "thermal": {
+            "count": 5,
+            "min": 60.0,
+            "median": 60.0,
+            "max": 60.0,
+            "mean": 60.0
+          },
+          "electrical": {
+            "count": 5,
+            "min": 70.0,
+            "median": 70.0,
+            "max": 70.0,
+            "mean": 70.0
+          },
+          "engine_load": {
+            "count": 5,
+            "min": 70.0,
+            "median": 70.0,
+            "max": 70.0,
+            "mean": 70.0
+          },
+          "none": {
+            "count": 5,
+            "min": 80.0,
+            "median": 80.0,
+            "max": 80.0,
+            "mean": 80.0
+          }
+        },
+        "status_confusion_partly_circular": {
+          "none": {
+            "healthy": 5
+          },
+          "thermal": {
+            "attention": 5
+          },
+          "electrical": {
+            "attention": 5
+          },
+          "engine_load": {
+            "attention": 5
+          }
+        }
+      }
+    }
+  },
+  "episodes": [
+    {
+      "episode_id": "normal-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 1,
+      "reference_family": "none",
+      "view": "steady",
+      "predicted_family": "none",
+      "predicted_families": [],
+      "rule_ids": [],
+      "health_status": "healthy",
+      "health_score": 100.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.451,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 1,
+      "reference_family": "none",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "healthy",
+      "health_score": 80.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 4.095,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 2,
+      "reference_family": "none",
+      "view": "steady",
+      "predicted_family": "none",
+      "predicted_families": [],
+      "rule_ids": [],
+      "health_status": "healthy",
+      "health_score": 100.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.375,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 2,
+      "reference_family": "none",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "healthy",
+      "health_score": 80.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.592,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 3,
+      "reference_family": "none",
+      "view": "steady",
+      "predicted_family": "none",
+      "predicted_families": [],
+      "rule_ids": [],
+      "health_status": "healthy",
+      "health_score": 100.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.381,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 3,
+      "reference_family": "none",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "healthy",
+      "health_score": 80.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.548,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 4,
+      "reference_family": "none",
+      "view": "steady",
+      "predicted_family": "none",
+      "predicted_families": [],
+      "rule_ids": [],
+      "health_status": "healthy",
+      "health_score": 100.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.369,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 4,
+      "reference_family": "none",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "healthy",
+      "health_score": 80.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.545,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 5,
+      "reference_family": "none",
+      "view": "steady",
+      "predicted_family": "none",
+      "predicted_families": [],
+      "rule_ids": [],
+      "health_status": "healthy",
+      "health_score": 100.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.368,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "normal-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "normal",
+      "seed": 5,
+      "reference_family": "none",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "healthy",
+      "health_score": 80.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.533,
+      "expected_rule_ids": [],
+      "expected_min_severity": "info"
+    },
+    {
+      "episode_id": "high_temperature-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 1,
+      "reference_family": "thermal",
+      "view": "steady",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.393,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 1,
+      "reference_family": "thermal",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.557,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 2,
+      "reference_family": "thermal",
+      "view": "steady",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.419,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 2,
+      "reference_family": "thermal",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 4.316,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 3,
+      "reference_family": "thermal",
+      "view": "steady",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.435,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 3,
+      "reference_family": "thermal",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 4.071,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 4,
+      "reference_family": "thermal",
+      "view": "steady",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.805,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 4,
+      "reference_family": "thermal",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 4.1,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 5,
+      "reference_family": "thermal",
+      "view": "steady",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.421,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_temperature-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_temperature",
+      "seed": 5,
+      "reference_family": "thermal",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal"
+      ],
+      "rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 60.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 4.07,
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 1,
+      "reference_family": "electrical",
+      "view": "steady",
+      "predicted_family": "electrical",
+      "predicted_families": [
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.395,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 1,
+      "reference_family": "electrical",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.575,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 2,
+      "reference_family": "electrical",
+      "view": "steady",
+      "predicted_family": "electrical",
+      "predicted_families": [
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.422,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 2,
+      "reference_family": "electrical",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.886,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 3,
+      "reference_family": "electrical",
+      "view": "steady",
+      "predicted_family": "electrical",
+      "predicted_families": [
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.379,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 3,
+      "reference_family": "electrical",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.567,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 4,
+      "reference_family": "electrical",
+      "view": "steady",
+      "predicted_family": "electrical",
+      "predicted_families": [
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.425,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 4,
+      "reference_family": "electrical",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.721,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 5,
+      "reference_family": "electrical",
+      "view": "steady",
+      "predicted_family": "electrical",
+      "predicted_families": [
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.392,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "low_battery-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "low_battery",
+      "seed": 5,
+      "reference_family": "electrical",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "electrical"
+      ],
+      "rule_ids": [
+        "BATTERY_VOLTAGE_LOW",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.76,
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 1,
+      "reference_family": "engine_load",
+      "view": "steady",
+      "predicted_family": "engine_load",
+      "predicted_families": [
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.391,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed1",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 1,
+      "reference_family": "engine_load",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.582,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 2,
+      "reference_family": "engine_load",
+      "view": "steady",
+      "predicted_family": "engine_load",
+      "predicted_families": [
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.389,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed2",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 2,
+      "reference_family": "engine_load",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.585,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 3,
+      "reference_family": "engine_load",
+      "view": "steady",
+      "predicted_family": "engine_load",
+      "predicted_families": [
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.47,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed3",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 3,
+      "reference_family": "engine_load",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.697,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 4,
+      "reference_family": "engine_load",
+      "view": "steady",
+      "predicted_family": "engine_load",
+      "predicted_families": [
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.415,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed4",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 4,
+      "reference_family": "engine_load",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.904,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 5,
+      "reference_family": "engine_load",
+      "view": "steady",
+      "predicted_family": "engine_load",
+      "predicted_families": [
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "health_status": "healthy",
+      "health_score": 90.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 60,
+      "window_seconds": 59.0,
+      "analysis_duration_ms": 1.402,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    },
+    {
+      "episode_id": "high_engine_load-seed5",
+      "dataset_id": "synthetic-scenarios-v2",
+      "scenario": "high_engine_load",
+      "seed": 5,
+      "reference_family": "engine_load",
+      "view": "full",
+      "predicted_family": "thermal",
+      "predicted_families": [
+        "thermal",
+        "engine_load"
+      ],
+      "rule_ids": [
+        "ENGINE_LOAD_HIGH",
+        "RAPID_COOLANT_RISE",
+        "RAPID_OIL_TEMP_RISE"
+      ],
+      "health_status": "attention",
+      "health_score": 70.0,
+      "confidence": 1.0,
+      "data_sufficiency": "sufficient_data",
+      "provisional": false,
+      "sample_count": 180,
+      "window_seconds": 179.0,
+      "analysis_duration_ms": 3.792,
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning"
+    }
+  ]
+}

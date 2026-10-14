@@ -136,3 +136,61 @@ def test_insufficient_score_reports_unknown() -> None:
     assert details.status == "unknown"
     assert details.notes == ["sample_count (3) is below minimum"]
     assert details.components == []
+
+
+def test_sixty_via_critical_plus_warning_across_categories() -> None:
+    """1 x critical (30) + 1 x warning (10) in different categories = 60."""
+    details = score_findings(
+        [
+            _finding("critical", category="temperature"),
+            _finding("warning", category="engine"),
+        ]
+    )
+    assert details.total_penalty == 40.0
+    assert details.score == 60.0
+    assert details.status == "attention"
+
+
+def test_sixty_via_four_warnings_across_categories() -> None:
+    """4 x warning (10 each) in different categories = 60, no cap involved."""
+    findings = [
+        _finding("warning", category=category)
+        for category in ("temperature", "electrical", "engine", "fuel")
+    ]
+    details = score_findings(findings)
+    assert details.total_penalty == 40.0
+    assert details.score == 60.0
+    assert details.status == "attention"
+
+
+def test_confidence_exact_weighted_combination() -> None:
+    """Pin the documented weights: 0.30 coverage, 0.25 duration, 0.25
+    sufficiency, 0.20 completeness, on top of the 0.10 floor."""
+    window = _window()  # 60 s window
+    dq = _dq(total_expected=60, sample_count=30, duration_seconds=30.0)
+    statistics = {
+        f"metric_{i}": MetricStatistics(metric=f"metric_{i}", unit="", count=30)
+        for i in range(6)
+    }
+    expected = round(0.10 + 0.90 * (0.30 * 0.5 + 0.25 * 0.5 + 0.25 * 0.5 + 0.20 * (6 / 11)), 4)
+    assert dq.coverage_ratio == 0.5
+    assert compute_confidence(dq, statistics, window) == expected
+
+
+def test_confidence_reflects_data_not_health_outcome() -> None:
+    """A fully-observed critical vehicle is scored ~0 with confidence 1.0.
+
+    Confidence measures trust in the telemetry-based assessment (volume,
+    coverage, duration, completeness) -- it is not a health probability and
+    must not be presented as model accuracy.
+    """
+    window = _window()
+    dq = _dq()  # full data: 60/60 samples, full duration
+    statistics = {
+        f"metric_{i}": MetricStatistics(metric=f"metric_{i}", unit="", count=60)
+        for i in range(11)
+    }
+    assert compute_confidence(dq, statistics, window) == 1.0
+    details = score_findings([_finding("critical", category=f"cat_{i}") for i in range(8)])
+    assert details.score == 0.0
+    assert details.status == "critical"

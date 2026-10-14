@@ -106,6 +106,60 @@ class RateLimitDependency:
             raise RateLimitError(retry_after_seconds=retry_after)
 
 
+class KeyedRateLimitDependency:
+    """Sliding-window limiter keyed by an arbitrary request identity.
+
+    Unlike :class:`RateLimitDependency` (credential endpoints, keyed by the
+    client address and reading the ``AUTH_RATE_LIMIT_*`` fields), this reads a
+    named settings group so a non-credential endpoint can carry its own budget.
+    The caller-supplied ``key_of`` extracts the bucket identity from whatever
+    object the endpoint resolved (e.g. the authenticated user).
+
+    The limiter is process-local, matching the platform's single-worker
+    deployment; behind multiple workers each process would enforce its own
+    budget (documented limitation, not a silent fallback). Calling ``reset``
+    drops the cached limiter so freshly changed settings take effect (used by
+    tests).
+    """
+
+    def __init__(
+        self,
+        scope: str,
+        *,
+        settings_prefix: str,
+        key_of: Callable[[object], str],
+        detail: str | None = None,
+    ) -> None:
+        self._scope = scope
+        self._prefix = settings_prefix
+        self._key_of = key_of
+        self._detail = detail
+        self._limiter: RateLimiter | None = None
+
+    def reset(self) -> None:
+        self._limiter = None
+
+    @property
+    def bucket_count(self) -> int:
+        return self._limiter.bucket_count if self._limiter is not None else 0
+
+    def check(self, identity: object) -> None:
+        settings = get_settings()
+        if not getattr(settings, f"{self._prefix}_enabled"):
+            return
+        if self._limiter is None:
+            self._limiter = RateLimiter(
+                max_requests=getattr(settings, f"{self._prefix}_max_requests"),
+                window_seconds=getattr(settings, f"{self._prefix}_window_seconds"),
+            )
+        allowed, retry_after = self._limiter.allow(self._key_of(identity))
+        if not allowed:
+            raise RateLimitError(
+                self._detail or f"Rate limit exceeded for {self._scope}",
+                retry_after_seconds=retry_after,
+            )
+
+
 def client_host(request: Request) -> str:
     """Identity of the caller for rate limiting purposes."""
     forwarded = request.headers.get("x-forwarded-for")

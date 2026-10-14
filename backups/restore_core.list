@@ -1,0 +1,465 @@
+;
+; Archive created at 2026-10-13 20:53:48
+;     dbname: postgres
+;     TOC Entries: 477
+;     Compression: gzip
+;     Dump Version: 1.16-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 17.6
+;     Dumped by pg_dump version: 17.10
+;
+;
+; Selected TOC Entries:
+;
+15; 2615 16498 SCHEMA - auth supabase_admin
+11; 2615 16392 SCHEMA - extensions postgres
+14; 2615 16578 SCHEMA - graphql supabase_admin
+13; 2615 16567 SCHEMA - graphql_public supabase_admin
+10; 2615 16390 SCHEMA - pgbouncer pgbouncer
+18; 2615 25711 SCHEMA - public postgres
+4578; 0 0 COMMENT - SCHEMA public postgres
+17; 2615 16559 SCHEMA - realtime supabase_admin
+16; 2615 16546 SCHEMA - storage supabase_admin
+12; 2615 16607 SCHEMA - vault supabase_admin
+2; 3079 16393 EXTENSION - pg_stat_statements 
+4579; 0 0 COMMENT - EXTENSION pg_stat_statements 
+4; 3079 16447 EXTENSION - pgcrypto 
+4580; 0 0 COMMENT - EXTENSION pgcrypto 
+3; 3079 16436 EXTENSION - uuid-ossp 
+4582; 0 0 COMMENT - EXTENSION "uuid-ossp" 
+1174; 1247 16744 TYPE auth aal_level supabase_auth_admin
+1198; 1247 16885 TYPE auth code_challenge_method supabase_auth_admin
+1171; 1247 16738 TYPE auth factor_status supabase_auth_admin
+1168; 1247 16732 TYPE auth factor_type supabase_auth_admin
+1216; 1247 16988 TYPE auth oauth_authorization_status supabase_auth_admin
+1228; 1247 17061 TYPE auth oauth_client_type supabase_auth_admin
+1210; 1247 16966 TYPE auth oauth_registration_type supabase_auth_admin
+1219; 1247 16998 TYPE auth oauth_response_type supabase_auth_admin
+1204; 1247 16927 TYPE auth one_time_token_type supabase_auth_admin
+1255; 1247 17266 TYPE realtime action supabase_realtime_admin
+1258; 1247 17278 TYPE realtime equality_op supabase_realtime_admin
+1261; 1247 17307 TYPE realtime user_defined_filter supabase_realtime_admin
+1264; 1247 17310 TYPE realtime wal_column supabase_realtime_admin
+1267; 1247 17313 TYPE realtime wal_rls supabase_realtime_admin
+1294; 1247 17499 TYPE storage buckettype supabase_storage_admin
+357; 1255 16544 FUNCTION auth email() supabase_auth_admin
+4584; 0 0 COMMENT auth FUNCTION email() supabase_auth_admin
+370; 1255 16714 FUNCTION auth jwt() supabase_auth_admin
+356; 1255 16543 FUNCTION auth role() supabase_auth_admin
+4585; 0 0 COMMENT auth FUNCTION role() supabase_auth_admin
+355; 1255 16542 FUNCTION auth uid() supabase_auth_admin
+4586; 0 0 COMMENT auth FUNCTION uid() supabase_auth_admin
+358; 1255 16551 FUNCTION extensions grant_pg_cron_access() supabase_admin
+4587; 0 0 COMMENT extensions FUNCTION grant_pg_cron_access() supabase_admin
+362; 1255 16572 FUNCTION extensions grant_pg_graphql_access() supabase_admin
+4588; 0 0 COMMENT extensions FUNCTION grant_pg_graphql_access() supabase_admin
+359; 1255 16553 FUNCTION extensions grant_pg_net_access() supabase_admin
+4589; 0 0 COMMENT extensions FUNCTION grant_pg_net_access() supabase_admin
+360; 1255 16563 FUNCTION extensions pgrst_ddl_watch() supabase_admin
+361; 1255 16564 FUNCTION extensions pgrst_drop_watch() supabase_admin
+363; 1255 16574 FUNCTION extensions set_graphql_placeholder() supabase_admin
+4590; 0 0 COMMENT extensions FUNCTION set_graphql_placeholder() supabase_admin
+369; 1255 16665 FUNCTION graphql_public graphql(text, text, jsonb, jsonb) supabase_admin
+305; 1255 16391 FUNCTION pgbouncer get_auth(text) supabase_admin
+371; 1255 17314 FUNCTION realtime apply_rls(jsonb, integer) supabase_realtime_admin
+521; 1255 28142 FUNCTION realtime authorize(text, text, text, text, text, text[], text[]) supabase_realtime_admin
+372; 1255 17317 FUNCTION realtime broadcast_changes(text, text, text, text, text, record, record, text) supabase_realtime_admin
+373; 1255 17318 FUNCTION realtime build_prepared_statement_sql(text, regclass, realtime.wal_column[]) supabase_realtime_admin
+374; 1255 17319 FUNCTION realtime cast(text, regtype) supabase_realtime_admin
+375; 1255 17320 FUNCTION realtime check_equality_op(realtime.equality_op, regtype, text, text) supabase_realtime_admin
+376; 1255 17321 FUNCTION realtime check_equality_op(realtime.equality_op, regtype, text, text, boolean) supabase_realtime_admin
+377; 1255 17322 FUNCTION realtime is_visible_through_filters(realtime.wal_column[], realtime.user_defined_filter[]) supabase_realtime_admin
+378; 1255 17323 FUNCTION realtime list_changes(name, name, integer, integer) supabase_realtime_admin
+520; 1255 26184 FUNCTION realtime list_changes_sync(name, name, integer, integer) supabase_realtime_admin
+379; 1255 17324 FUNCTION realtime quote_wal2json(regclass) supabase_realtime_admin
+380; 1255 17325 FUNCTION realtime send(jsonb, text, text, boolean) supabase_realtime_admin
+381; 1255 17326 FUNCTION realtime send_binary(bytea, text, text, boolean) supabase_realtime_admin
+519; 1255 26182 FUNCTION realtime settled_changes(name, integer, text[]) supabase_realtime_admin
+382; 1255 17327 FUNCTION realtime subscription_check_filters() supabase_realtime_admin
+383; 1255 17330 FUNCTION realtime to_regrole(text) supabase_realtime_admin
+384; 1255 17331 FUNCTION realtime topic() supabase_realtime_admin
+385; 1255 17332 FUNCTION realtime wal2json_escape_identifier(text) supabase_realtime_admin
+396; 1255 17564 FUNCTION storage allow_any_operation(text[]) supabase_storage_admin
+395; 1255 17563 FUNCTION storage allow_only_operation(text) supabase_storage_admin
+390; 1255 17440 FUNCTION storage can_insert_object(text, text, uuid, jsonb) supabase_storage_admin
+398; 1255 17659 FUNCTION storage enforce_bucket_lifecycle_service_role() supabase_storage_admin
+392; 1255 17496 FUNCTION storage enforce_bucket_name_length() supabase_storage_admin
+388; 1255 17415 FUNCTION storage extension(text) supabase_storage_admin
+387; 1255 17414 FUNCTION storage filename(text) supabase_storage_admin
+386; 1255 17413 FUNCTION storage foldername(text) supabase_storage_admin
+393; 1255 17552 FUNCTION storage get_common_prefix(text, text, text) supabase_storage_admin
+404; 1255 17671 FUNCTION storage get_size_by_bucket(text, text) supabase_storage_admin
+399; 1255 17663 FUNCTION storage list_multipart_uploads_with_delimiter(text, text, text, integer, text, text, text) supabase_storage_admin
+400; 1255 17664 FUNCTION storage list_objects_with_delimiter(text, text, text, integer, text, text, text, text, text, timestamp with time zone, text) supabase_storage_admin
+391; 1255 17495 FUNCTION storage operation() supabase_storage_admin
+397; 1255 17658 FUNCTION storage protect_bucket_control_columns() supabase_storage_admin
+394; 1255 17559 FUNCTION storage protect_delete() supabase_storage_admin
+401; 1255 17666 FUNCTION storage search(text, text, integer, integer, integer, text, text, text, text, text) supabase_storage_admin
+402; 1255 17668 FUNCTION storage search_by_timestamp(text, text, integer, integer, text, text, text, text, text, text, text) supabase_storage_admin
+403; 1255 17670 FUNCTION storage search_v2(text, text, integer, integer, text, text, text, text, text, text, timestamp with time zone, text, boolean) supabase_storage_admin
+389; 1255 17430 FUNCTION storage update_updated_at_column() supabase_storage_admin
+242; 1259 16529 TABLE auth audit_log_entries supabase_auth_admin
+4591; 0 0 COMMENT auth TABLE audit_log_entries supabase_auth_admin
+261; 1259 17084 TABLE auth custom_oauth_providers supabase_auth_admin
+255; 1259 16889 TABLE auth flow_state supabase_auth_admin
+4592; 0 0 COMMENT auth TABLE flow_state supabase_auth_admin
+246; 1259 16686 TABLE auth identities supabase_auth_admin
+4593; 0 0 COMMENT auth TABLE identities supabase_auth_admin
+4594; 0 0 COMMENT auth COLUMN identities.email supabase_auth_admin
+241; 1259 16522 TABLE auth instances supabase_auth_admin
+4595; 0 0 COMMENT auth TABLE instances supabase_auth_admin
+250; 1259 16776 TABLE auth mfa_amr_claims supabase_auth_admin
+4596; 0 0 COMMENT auth TABLE mfa_amr_claims supabase_auth_admin
+249; 1259 16764 TABLE auth mfa_challenges supabase_auth_admin
+4597; 0 0 COMMENT auth TABLE mfa_challenges supabase_auth_admin
+248; 1259 16751 TABLE auth mfa_factors supabase_auth_admin
+4598; 0 0 COMMENT auth TABLE mfa_factors supabase_auth_admin
+4599; 0 0 COMMENT auth COLUMN mfa_factors.last_webauthn_challenge_data supabase_auth_admin
+266; 1259 17219 TABLE auth mfa_recovery_code_sets supabase_auth_admin
+267; 1259 17242 TABLE auth mfa_recovery_codes supabase_auth_admin
+258; 1259 17001 TABLE auth oauth_authorizations supabase_auth_admin
+260; 1259 17074 TABLE auth oauth_client_states supabase_auth_admin
+4600; 0 0 COMMENT auth TABLE oauth_client_states supabase_auth_admin
+257; 1259 16971 TABLE auth oauth_clients supabase_auth_admin
+259; 1259 17034 TABLE auth oauth_consents supabase_auth_admin
+256; 1259 16939 TABLE auth one_time_tokens supabase_auth_admin
+240; 1259 16511 TABLE auth refresh_tokens supabase_auth_admin
+4601; 0 0 COMMENT auth TABLE refresh_tokens supabase_auth_admin
+239; 1259 16510 SEQUENCE auth refresh_tokens_id_seq supabase_auth_admin
+4602; 0 0 SEQUENCE OWNED BY auth refresh_tokens_id_seq supabase_auth_admin
+253; 1259 16818 TABLE auth saml_providers supabase_auth_admin
+4603; 0 0 COMMENT auth TABLE saml_providers supabase_auth_admin
+254; 1259 16836 TABLE auth saml_relay_states supabase_auth_admin
+4604; 0 0 COMMENT auth TABLE saml_relay_states supabase_auth_admin
+243; 1259 16537 TABLE auth schema_migrations supabase_auth_admin
+4605; 0 0 COMMENT auth TABLE schema_migrations supabase_auth_admin
+265; 1259 17198 TABLE auth scim_tokens supabase_auth_admin
+264; 1259 17167 TABLE auth scim_users supabase_auth_admin
+247; 1259 16716 TABLE auth sessions supabase_auth_admin
+4606; 0 0 COMMENT auth TABLE sessions supabase_auth_admin
+4607; 0 0 COMMENT auth COLUMN sessions.not_after supabase_auth_admin
+4608; 0 0 COMMENT auth COLUMN sessions.refresh_token_hmac_key supabase_auth_admin
+4609; 0 0 COMMENT auth COLUMN sessions.refresh_token_counter supabase_auth_admin
+252; 1259 16803 TABLE auth sso_domains supabase_auth_admin
+4610; 0 0 COMMENT auth TABLE sso_domains supabase_auth_admin
+251; 1259 16794 TABLE auth sso_providers supabase_auth_admin
+4611; 0 0 COMMENT auth TABLE sso_providers supabase_auth_admin
+4612; 0 0 COMMENT auth COLUMN sso_providers.resource_id supabase_auth_admin
+238; 1259 16499 TABLE auth users supabase_auth_admin
+4613; 0 0 COMMENT auth TABLE users supabase_auth_admin
+4614; 0 0 COMMENT auth COLUMN users.is_sso_user supabase_auth_admin
+263; 1259 17149 TABLE auth webauthn_challenges supabase_auth_admin
+262; 1259 17126 TABLE auth webauthn_credentials supabase_auth_admin
+288; 1259 26110 TABLE public agent_diagnoses postgres
+292; 1259 26551 TABLE public alembic_version postgres
+286; 1259 26081 TABLE public refresh_tokens postgres
+291; 1259 26164 TABLE public telemetry_records postgres
+284; 1259 26053 TABLE public users postgres
+289; 1259 26131 TABLE public vehicle_health_snapshots postgres
+287; 1259 26094 TABLE public vehicles postgres
+271; 1259 17333 TABLE realtime messages supabase_realtime_admin
+272; 1259 17341 TABLE realtime schema_migrations supabase_admin
+273; 1259 17344 TABLE realtime subscription supabase_realtime_admin
+274; 1259 17354 SEQUENCE realtime subscription_id_seq supabase_realtime_admin
+276; 1259 17385 TABLE storage buckets supabase_storage_admin
+4615; 0 0 COMMENT storage COLUMN buckets.owner supabase_storage_admin
+280; 1259 17504 TABLE storage buckets_analytics supabase_storage_admin
+281; 1259 17517 TABLE storage buckets_vectors supabase_storage_admin
+275; 1259 17377 TABLE storage migrations supabase_storage_admin
+277; 1259 17395 TABLE storage objects supabase_storage_admin
+4616; 0 0 COMMENT storage COLUMN objects.owner supabase_storage_admin
+278; 1259 17444 TABLE storage s3_multipart_uploads supabase_storage_admin
+279; 1259 17458 TABLE storage s3_multipart_uploads_parts supabase_storage_admin
+282; 1259 17527 TABLE storage vector_indexes supabase_storage_admin
+3899; 2604 16514 DEFAULT auth refresh_tokens id supabase_auth_admin
+4525; 0 16529 TABLE DATA auth audit_log_entries supabase_auth_admin
+4542; 0 17084 TABLE DATA auth custom_oauth_providers supabase_auth_admin
+4536; 0 16889 TABLE DATA auth flow_state supabase_auth_admin
+4527; 0 16686 TABLE DATA auth identities supabase_auth_admin
+4524; 0 16522 TABLE DATA auth instances supabase_auth_admin
+4531; 0 16776 TABLE DATA auth mfa_amr_claims supabase_auth_admin
+4530; 0 16764 TABLE DATA auth mfa_challenges supabase_auth_admin
+4529; 0 16751 TABLE DATA auth mfa_factors supabase_auth_admin
+4547; 0 17219 TABLE DATA auth mfa_recovery_code_sets supabase_auth_admin
+4548; 0 17242 TABLE DATA auth mfa_recovery_codes supabase_auth_admin
+4539; 0 17001 TABLE DATA auth oauth_authorizations supabase_auth_admin
+4541; 0 17074 TABLE DATA auth oauth_client_states supabase_auth_admin
+4538; 0 16971 TABLE DATA auth oauth_clients supabase_auth_admin
+4540; 0 17034 TABLE DATA auth oauth_consents supabase_auth_admin
+4537; 0 16939 TABLE DATA auth one_time_tokens supabase_auth_admin
+4523; 0 16511 TABLE DATA auth refresh_tokens supabase_auth_admin
+4534; 0 16818 TABLE DATA auth saml_providers supabase_auth_admin
+4535; 0 16836 TABLE DATA auth saml_relay_states supabase_auth_admin
+4526; 0 16537 TABLE DATA auth schema_migrations supabase_auth_admin
+4546; 0 17198 TABLE DATA auth scim_tokens supabase_auth_admin
+4545; 0 17167 TABLE DATA auth scim_users supabase_auth_admin
+4528; 0 16716 TABLE DATA auth sessions supabase_auth_admin
+4533; 0 16803 TABLE DATA auth sso_domains supabase_auth_admin
+4532; 0 16794 TABLE DATA auth sso_providers supabase_auth_admin
+4521; 0 16499 TABLE DATA auth users supabase_auth_admin
+4544; 0 17149 TABLE DATA auth webauthn_challenges supabase_auth_admin
+4543; 0 17126 TABLE DATA auth webauthn_credentials supabase_auth_admin
+4565; 0 26110 TABLE DATA public agent_diagnoses postgres
+4569; 0 26551 TABLE DATA public alembic_version postgres
+4563; 0 26081 TABLE DATA public refresh_tokens postgres
+4568; 0 26164 TABLE DATA public telemetry_records postgres
+4561; 0 26053 TABLE DATA public users postgres
+4566; 0 26131 TABLE DATA public vehicle_health_snapshots postgres
+4564; 0 26094 TABLE DATA public vehicles postgres
+4549; 0 17341 TABLE DATA realtime schema_migrations supabase_admin
+4550; 0 17344 TABLE DATA realtime subscription supabase_realtime_admin
+4553; 0 17385 TABLE DATA storage buckets supabase_storage_admin
+4557; 0 17504 TABLE DATA storage buckets_analytics supabase_storage_admin
+4558; 0 17517 TABLE DATA storage buckets_vectors supabase_storage_admin
+4552; 0 17377 TABLE DATA storage migrations supabase_storage_admin
+4554; 0 17395 TABLE DATA storage objects supabase_storage_admin
+4555; 0 17444 TABLE DATA storage s3_multipart_uploads supabase_storage_admin
+4556; 0 17458 TABLE DATA storage s3_multipart_uploads_parts supabase_storage_admin
+4559; 0 17527 TABLE DATA storage vector_indexes supabase_storage_admin
+3889; 0 16612 TABLE DATA vault secrets supabase_admin
+4617; 0 0 SEQUENCE SET auth refresh_tokens_id_seq supabase_auth_admin
+4618; 0 0 SEQUENCE SET realtime subscription_id_seq supabase_realtime_admin
+4122; 2606 16789 CONSTRAINT auth mfa_amr_claims amr_id_pk supabase_auth_admin
+4091; 2606 16535 CONSTRAINT auth audit_log_entries audit_log_entries_pkey supabase_auth_admin
+4177; 2606 17121 CONSTRAINT auth custom_oauth_providers custom_oauth_providers_identifier_key supabase_auth_admin
+4179; 2606 17119 CONSTRAINT auth custom_oauth_providers custom_oauth_providers_pkey supabase_auth_admin
+4145; 2606 16895 CONSTRAINT auth flow_state flow_state_pkey supabase_auth_admin
+4100; 2606 16913 CONSTRAINT auth identities identities_pkey supabase_auth_admin
+4102; 2606 16923 CONSTRAINT auth identities identities_provider_id_provider_unique supabase_auth_admin
+4089; 2606 16528 CONSTRAINT auth instances instances_pkey supabase_auth_admin
+4124; 2606 16782 CONSTRAINT auth mfa_amr_claims mfa_amr_claims_session_id_authentication_method_pkey supabase_auth_admin
+4120; 2606 16770 CONSTRAINT auth mfa_challenges mfa_challenges_pkey supabase_auth_admin
+4112; 2606 16963 CONSTRAINT auth mfa_factors mfa_factors_last_challenged_at_key supabase_auth_admin
+4114; 2606 16757 CONSTRAINT auth mfa_factors mfa_factors_pkey supabase_auth_admin
+4207; 2606 17231 CONSTRAINT auth mfa_recovery_code_sets mfa_recovery_code_sets_mfa_factor_id_key supabase_auth_admin
+4209; 2606 17227 CONSTRAINT auth mfa_recovery_code_sets mfa_recovery_code_sets_pkey supabase_auth_admin
+4211; 2606 17229 CONSTRAINT auth mfa_recovery_code_sets mfa_recovery_code_sets_user_id_key supabase_auth_admin
+4213; 2606 17249 CONSTRAINT auth mfa_recovery_codes mfa_recovery_codes_pkey supabase_auth_admin
+4158; 2606 17022 CONSTRAINT auth oauth_authorizations oauth_authorizations_authorization_code_key supabase_auth_admin
+4160; 2606 17020 CONSTRAINT auth oauth_authorizations oauth_authorizations_authorization_id_key supabase_auth_admin
+4162; 2606 17018 CONSTRAINT auth oauth_authorizations oauth_authorizations_pkey supabase_auth_admin
+4172; 2606 17080 CONSTRAINT auth oauth_client_states oauth_client_states_pkey supabase_auth_admin
+4155; 2606 16982 CONSTRAINT auth oauth_clients oauth_clients_pkey supabase_auth_admin
+4166; 2606 17044 CONSTRAINT auth oauth_consents oauth_consents_pkey supabase_auth_admin
+4168; 2606 17046 CONSTRAINT auth oauth_consents oauth_consents_user_client_unique supabase_auth_admin
+4149; 2606 16948 CONSTRAINT auth one_time_tokens one_time_tokens_pkey supabase_auth_admin
+4083; 2606 16518 CONSTRAINT auth refresh_tokens refresh_tokens_pkey supabase_auth_admin
+4086; 2606 16699 CONSTRAINT auth refresh_tokens refresh_tokens_token_unique supabase_auth_admin
+4134; 2606 16829 CONSTRAINT auth saml_providers saml_providers_entity_id_key supabase_auth_admin
+4136; 2606 16827 CONSTRAINT auth saml_providers saml_providers_pkey supabase_auth_admin
+4141; 2606 16843 CONSTRAINT auth saml_relay_states saml_relay_states_pkey supabase_auth_admin
+4094; 2606 16541 CONSTRAINT auth schema_migrations schema_migrations_pkey supabase_auth_admin
+4202; 2606 17208 CONSTRAINT auth scim_tokens scim_tokens_pkey supabase_auth_admin
+4194; 2606 17178 CONSTRAINT auth scim_users scim_users_pkey supabase_auth_admin
+4107; 2606 16720 CONSTRAINT auth sessions sessions_pkey supabase_auth_admin
+4131; 2606 16810 CONSTRAINT auth sso_domains sso_domains_pkey supabase_auth_admin
+4126; 2606 16801 CONSTRAINT auth sso_providers sso_providers_pkey supabase_auth_admin
+4076; 2606 16883 CONSTRAINT auth users users_phone_key supabase_auth_admin
+4078; 2606 16505 CONSTRAINT auth users users_pkey supabase_auth_admin
+4187; 2606 17158 CONSTRAINT auth webauthn_challenges webauthn_challenges_pkey supabase_auth_admin
+4183; 2606 17141 CONSTRAINT auth webauthn_credentials webauthn_credentials_pkey supabase_auth_admin
+4278; 2606 26118 CONSTRAINT public agent_diagnoses agent_diagnoses_pkey postgres
+4301; 2606 26555 CONSTRAINT public alembic_version alembic_version_pkc postgres
+4272; 2606 26085 CONSTRAINT public refresh_tokens refresh_tokens_pkey postgres
+4298; 2606 26171 CONSTRAINT public telemetry_records telemetry_records_pkey postgres
+4261; 2606 26062 CONSTRAINT public users users_pkey postgres
+4284; 2606 26138 CONSTRAINT public vehicle_health_snapshots vehicle_health_snapshots_pkey postgres
+4276; 2606 26102 CONSTRAINT public vehicles vehicles_pkey postgres
+4051; 2606 17355 CHECK CONSTRAINT realtime messages messages_payload_exclusive supabase_realtime_admin
+4217; 2606 17357 CONSTRAINT realtime messages messages_pkey supabase_realtime_admin
+4222; 2606 17359 CONSTRAINT realtime subscription pk_subscription supabase_realtime_admin
+4219; 2606 17361 CONSTRAINT realtime schema_migrations schema_migrations_pkey supabase_admin
+4246; 2606 17550 CONSTRAINT storage buckets_analytics buckets_analytics_pkey supabase_storage_admin
+4230; 2606 17393 CONSTRAINT storage buckets buckets_pkey supabase_storage_admin
+4249; 2606 17526 CONSTRAINT storage buckets_vectors buckets_vectors_pkey supabase_storage_admin
+4225; 2606 17384 CONSTRAINT storage migrations migrations_name_key supabase_storage_admin
+4227; 2606 17382 CONSTRAINT storage migrations migrations_pkey supabase_storage_admin
+4239; 2606 17405 CONSTRAINT storage objects objects_pkey supabase_storage_admin
+4244; 2606 17467 CONSTRAINT storage s3_multipart_uploads_parts s3_multipart_uploads_parts_pkey supabase_storage_admin
+4242; 2606 17452 CONSTRAINT storage s3_multipart_uploads s3_multipart_uploads_pkey supabase_storage_admin
+4252; 2606 17536 CONSTRAINT storage vector_indexes vector_indexes_pkey supabase_storage_admin
+4092; 1259 16536 INDEX auth audit_logs_instance_id_idx supabase_auth_admin
+4062; 1259 16709 INDEX auth confirmation_token_idx supabase_auth_admin
+4173; 1259 17125 INDEX auth custom_oauth_providers_created_at_idx supabase_auth_admin
+4174; 1259 17124 INDEX auth custom_oauth_providers_enabled_idx supabase_auth_admin
+4175; 1259 17122 INDEX auth custom_oauth_providers_identifier_idx supabase_auth_admin
+4180; 1259 17123 INDEX auth custom_oauth_providers_provider_type_idx supabase_auth_admin
+4063; 1259 16711 INDEX auth email_change_token_current_idx supabase_auth_admin
+4064; 1259 16712 INDEX auth email_change_token_new_idx supabase_auth_admin
+4110; 1259 16791 INDEX auth factor_id_created_at_idx supabase_auth_admin
+4143; 1259 16899 INDEX auth flow_state_created_at_idx supabase_auth_admin
+4098; 1259 16879 INDEX auth identities_email_idx supabase_auth_admin
+4619; 0 0 COMMENT auth INDEX identities_email_idx supabase_auth_admin
+4103; 1259 16706 INDEX auth identities_user_id_idx supabase_auth_admin
+4146; 1259 16896 INDEX auth idx_auth_code supabase_auth_admin
+4170; 1259 17081 INDEX auth idx_oauth_client_states_created_at supabase_auth_admin
+4147; 1259 16897 INDEX auth idx_user_id_auth_method supabase_auth_admin
+4065; 1259 17257 INDEX auth idx_users_created_at_desc supabase_auth_admin
+4066; 1259 17256 INDEX auth idx_users_email supabase_auth_admin
+4067; 1259 17258 INDEX auth idx_users_last_sign_in_at_desc supabase_auth_admin
+4068; 1259 17259 INDEX auth idx_users_name supabase_auth_admin
+4118; 1259 16902 INDEX auth mfa_challenge_created_at_idx supabase_auth_admin
+4115; 1259 16763 INDEX auth mfa_factors_user_friendly_name_unique supabase_auth_admin
+4116; 1259 16908 INDEX auth mfa_factors_user_id_idx supabase_auth_admin
+4214; 1259 17255 INDEX auth mfa_recovery_codes_set_id_idx supabase_auth_admin
+4156; 1259 17033 INDEX auth oauth_auth_pending_exp_idx supabase_auth_admin
+4153; 1259 16986 INDEX auth oauth_clients_deleted_at_idx supabase_auth_admin
+4163; 1259 17059 INDEX auth oauth_consents_active_client_idx supabase_auth_admin
+4164; 1259 17057 INDEX auth oauth_consents_active_user_client_idx supabase_auth_admin
+4169; 1259 17058 INDEX auth oauth_consents_user_order_idx supabase_auth_admin
+4150; 1259 16955 INDEX auth one_time_tokens_relates_to_hash_idx supabase_auth_admin
+4151; 1259 16954 INDEX auth one_time_tokens_token_hash_hash_idx supabase_auth_admin
+4152; 1259 16956 INDEX auth one_time_tokens_user_id_token_type_key supabase_auth_admin
+4069; 1259 16713 INDEX auth reauthentication_token_idx supabase_auth_admin
+4070; 1259 16710 INDEX auth recovery_token_idx supabase_auth_admin
+4079; 1259 16519 INDEX auth refresh_tokens_instance_id_idx supabase_auth_admin
+4080; 1259 16520 INDEX auth refresh_tokens_instance_id_user_id_idx supabase_auth_admin
+4081; 1259 16705 INDEX auth refresh_tokens_parent_idx supabase_auth_admin
+4084; 1259 16793 INDEX auth refresh_tokens_session_id_revoked_idx supabase_auth_admin
+4087; 1259 16898 INDEX auth refresh_tokens_updated_at_idx supabase_auth_admin
+4137; 1259 16835 INDEX auth saml_providers_sso_provider_id_idx supabase_auth_admin
+4138; 1259 16900 INDEX auth saml_relay_states_created_at_idx supabase_auth_admin
+4139; 1259 16850 INDEX auth saml_relay_states_for_email_idx supabase_auth_admin
+4142; 1259 16849 INDEX auth saml_relay_states_sso_provider_id_idx supabase_auth_admin
+4200; 1259 17216 INDEX auth scim_tokens_expires_at_idx supabase_auth_admin
+4203; 1259 17217 INDEX auth scim_tokens_revoked_at_idx supabase_auth_admin
+4204; 1259 17215 INDEX auth scim_tokens_sso_provider_id_idx supabase_auth_admin
+4205; 1259 17214 INDEX auth scim_tokens_token_hash_key supabase_auth_admin
+4189; 1259 17194 INDEX auth scim_users_created_at_idx supabase_auth_admin
+4190; 1259 17197 INDEX auth scim_users_deleted_at_idx supabase_auth_admin
+4191; 1259 17190 INDEX auth scim_users_external_id_key supabase_auth_admin
+4192; 1259 17192 INDEX auth scim_users_id_idx supabase_auth_admin
+4195; 1259 17196 INDEX auth scim_users_sso_provider_id_idx supabase_auth_admin
+4196; 1259 17195 INDEX auth scim_users_updated_at_idx supabase_auth_admin
+4197; 1259 17191 INDEX auth scim_users_user_id_idx supabase_auth_admin
+4198; 1259 17193 INDEX auth scim_users_user_name_idx supabase_auth_admin
+4199; 1259 17189 INDEX auth scim_users_user_name_key supabase_auth_admin
+4104; 1259 16901 INDEX auth sessions_not_after_idx supabase_auth_admin
+4105; 1259 17071 INDEX auth sessions_oauth_client_id_idx supabase_auth_admin
+4108; 1259 16792 INDEX auth sessions_user_id_idx supabase_auth_admin
+4129; 1259 16817 INDEX auth sso_domains_domain_idx supabase_auth_admin
+4132; 1259 16816 INDEX auth sso_domains_sso_provider_id_idx supabase_auth_admin
+4127; 1259 16802 INDEX auth sso_providers_resource_id_idx supabase_auth_admin
+4128; 1259 16964 INDEX auth sso_providers_resource_id_pattern_idx supabase_auth_admin
+4117; 1259 16961 INDEX auth unique_phone_factor_per_user supabase_auth_admin
+4109; 1259 16790 INDEX auth user_id_created_at_idx supabase_auth_admin
+4071; 1259 16870 INDEX auth users_email_partial_key supabase_auth_admin
+4620; 0 0 COMMENT auth INDEX users_email_partial_key supabase_auth_admin
+4072; 1259 16707 INDEX auth users_instance_id_email_idx supabase_auth_admin
+4073; 1259 16509 INDEX auth users_instance_id_idx supabase_auth_admin
+4074; 1259 16925 INDEX auth users_is_anonymous_idx supabase_auth_admin
+4185; 1259 17165 INDEX auth webauthn_challenges_expires_at_idx supabase_auth_admin
+4188; 1259 17164 INDEX auth webauthn_challenges_user_id_idx supabase_auth_admin
+4181; 1259 17147 INDEX auth webauthn_credentials_credential_id_key supabase_auth_admin
+4184; 1259 17148 INDEX auth webauthn_credentials_user_id_idx supabase_auth_admin
+4279; 1259 26130 INDEX public ix_agent_diagnoses_vehicle_created_at postgres
+4280; 1259 26129 INDEX public ix_agent_diagnoses_vehicle_trigger_created postgres
+4285; 1259 26161 INDEX public ix_rag_chunk_content_tsv postgres
+4286; 1259 26556 INDEX public ix_rag_chunk_embedding postgres
+4287; 1259 26162 INDEX public ix_rag_chunk_scope postgres
+4288; 1259 26163 INDEX public ix_rag_chunk_version postgres
+4263; 1259 26079 INDEX public ix_rag_version_document postgres
+4268; 1259 26091 INDEX public ix_refresh_tokens_expires_at postgres
+4269; 1259 26093 INDEX public ix_refresh_tokens_token_hash postgres
+4270; 1259 26092 INDEX public ix_refresh_tokens_user_id postgres
+4293; 1259 26178 INDEX public ix_telemetry_records_timestamp postgres
+4294; 1259 26179 INDEX public ix_telemetry_records_vehicle_id postgres
+4295; 1259 26180 INDEX public ix_telemetry_records_vehicle_id_timestamp postgres
+4296; 1259 27346 INDEX public ix_telemetry_records_vehicle_run_timestamp postgres
+4259; 1259 26063 INDEX public ix_users_email postgres
+4281; 1259 26144 INDEX public ix_vehicle_health_snapshots_vehicle_generated_at postgres
+4282; 1259 26145 INDEX public ix_vehicle_health_snapshots_vehicle_status_generated postgres
+4273; 1259 26109 INDEX public ix_vehicles_owner_user_id postgres
+4274; 1259 26108 INDEX public ix_vehicles_vin postgres
+4299; 1259 26177 INDEX public uq_telemetry_records_vehicle_source_event postgres
+4220; 1259 17362 INDEX realtime ix_realtime_subscription_entity supabase_realtime_admin
+4215; 1259 17363 INDEX realtime messages_inserted_at_topic_index supabase_realtime_admin
+4223; 1259 17364 INDEX realtime subscription_subscription_id_entity_filters_action_filter_selec supabase_realtime_admin
+4228; 1259 17394 INDEX storage bname supabase_storage_admin
+4247; 1259 17551 INDEX storage buckets_analytics_unique_name_idx supabase_storage_admin
+4240; 1259 17478 INDEX storage idx_multipart_uploads_list supabase_storage_admin
+4231; 1259 17443 INDEX storage idx_objects_bucket_id_name supabase_storage_admin
+4232; 1259 17558 INDEX storage idx_objects_bucket_id_name_lower supabase_storage_admin
+4233; 1259 17573 INDEX storage idx_objects_current_version supabase_storage_admin
+4234; 1259 17672 INDEX storage idx_objects_delete_markers supabase_storage_admin
+4235; 1259 17574 INDEX storage idx_objects_null_version supabase_storage_admin
+4236; 1259 17412 INDEX storage name_prefix_search supabase_storage_admin
+4237; 1259 17572 INDEX storage objects_bucket_id_name_version_key supabase_storage_admin
+4250; 1259 17542 INDEX storage vector_indexes_name_bucket_id_idx supabase_storage_admin
+4339; 2620 17365 TRIGGER realtime subscription tr_check_filters supabase_realtime_admin
+4340; 2620 17497 TRIGGER storage buckets enforce_bucket_name_length_trigger supabase_storage_admin
+4341; 2620 17660 TRIGGER storage buckets protect_bucket_control_insert supabase_storage_admin
+4342; 2620 17661 TRIGGER storage buckets protect_bucket_control_update supabase_storage_admin
+4343; 2620 17662 TRIGGER storage buckets protect_bucket_control_update_role supabase_storage_admin
+4344; 2620 17560 TRIGGER storage buckets protect_buckets_delete supabase_storage_admin
+4345; 2620 17561 TRIGGER storage objects protect_objects_delete supabase_storage_admin
+4346; 2620 17431 TRIGGER storage objects update_objects_updated_at supabase_storage_admin
+4303; 2606 16693 FK CONSTRAINT auth identities identities_user_id_fkey supabase_auth_admin
+4308; 2606 16783 FK CONSTRAINT auth mfa_amr_claims mfa_amr_claims_session_id_fkey supabase_auth_admin
+4307; 2606 16771 FK CONSTRAINT auth mfa_challenges mfa_challenges_auth_factor_id_fkey supabase_auth_admin
+4306; 2606 16758 FK CONSTRAINT auth mfa_factors mfa_factors_user_id_fkey supabase_auth_admin
+4323; 2606 17237 FK CONSTRAINT auth mfa_recovery_code_sets mfa_recovery_code_sets_mfa_factor_id_fkey supabase_auth_admin
+4324; 2606 17232 FK CONSTRAINT auth mfa_recovery_code_sets mfa_recovery_code_sets_user_id_fkey supabase_auth_admin
+4325; 2606 17250 FK CONSTRAINT auth mfa_recovery_codes mfa_recovery_codes_mfa_recovery_code_set_id_fkey supabase_auth_admin
+4314; 2606 17023 FK CONSTRAINT auth oauth_authorizations oauth_authorizations_client_id_fkey supabase_auth_admin
+4315; 2606 17028 FK CONSTRAINT auth oauth_authorizations oauth_authorizations_user_id_fkey supabase_auth_admin
+4316; 2606 17052 FK CONSTRAINT auth oauth_consents oauth_consents_client_id_fkey supabase_auth_admin
+4317; 2606 17047 FK CONSTRAINT auth oauth_consents oauth_consents_user_id_fkey supabase_auth_admin
+4313; 2606 16949 FK CONSTRAINT auth one_time_tokens one_time_tokens_user_id_fkey supabase_auth_admin
+4302; 2606 16726 FK CONSTRAINT auth refresh_tokens refresh_tokens_session_id_fkey supabase_auth_admin
+4310; 2606 16830 FK CONSTRAINT auth saml_providers saml_providers_sso_provider_id_fkey supabase_auth_admin
+4311; 2606 16903 FK CONSTRAINT auth saml_relay_states saml_relay_states_flow_state_id_fkey supabase_auth_admin
+4312; 2606 16844 FK CONSTRAINT auth saml_relay_states saml_relay_states_sso_provider_id_fkey supabase_auth_admin
+4322; 2606 17209 FK CONSTRAINT auth scim_tokens scim_tokens_sso_provider_id_fkey supabase_auth_admin
+4320; 2606 17179 FK CONSTRAINT auth scim_users scim_users_sso_provider_id_fkey supabase_auth_admin
+4321; 2606 17184 FK CONSTRAINT auth scim_users scim_users_user_id_fkey supabase_auth_admin
+4304; 2606 17066 FK CONSTRAINT auth sessions sessions_oauth_client_id_fkey supabase_auth_admin
+4305; 2606 16721 FK CONSTRAINT auth sessions sessions_user_id_fkey supabase_auth_admin
+4309; 2606 16811 FK CONSTRAINT auth sso_domains sso_domains_sso_provider_id_fkey supabase_auth_admin
+4319; 2606 17159 FK CONSTRAINT auth webauthn_challenges webauthn_challenges_user_id_fkey supabase_auth_admin
+4318; 2606 17142 FK CONSTRAINT auth webauthn_credentials webauthn_credentials_user_id_fkey supabase_auth_admin
+4334; 2606 26124 FK CONSTRAINT public agent_diagnoses agent_diagnoses_user_id_fkey postgres
+4335; 2606 26119 FK CONSTRAINT public agent_diagnoses agent_diagnoses_vehicle_id_fkey postgres
+4332; 2606 26086 FK CONSTRAINT public refresh_tokens refresh_tokens_user_id_fkey postgres
+4338; 2606 26172 FK CONSTRAINT public telemetry_records telemetry_records_vehicle_id_fkey postgres
+4336; 2606 26139 FK CONSTRAINT public vehicle_health_snapshots vehicle_health_snapshots_vehicle_id_fkey postgres
+4333; 2606 26103 FK CONSTRAINT public vehicles vehicles_owner_user_id_fkey postgres
+4326; 2606 17406 FK CONSTRAINT storage objects objects_bucketId_fkey supabase_storage_admin
+4327; 2606 17453 FK CONSTRAINT storage s3_multipart_uploads s3_multipart_uploads_bucket_id_fkey supabase_storage_admin
+4328; 2606 17473 FK CONSTRAINT storage s3_multipart_uploads_parts s3_multipart_uploads_parts_bucket_id_fkey supabase_storage_admin
+4329; 2606 17468 FK CONSTRAINT storage s3_multipart_uploads_parts s3_multipart_uploads_parts_upload_id_fkey supabase_storage_admin
+4330; 2606 17537 FK CONSTRAINT storage vector_indexes vector_indexes_bucket_id_fkey supabase_storage_admin
+4498; 0 16529 ROW SECURITY auth audit_log_entries supabase_auth_admin
+4509; 0 16889 ROW SECURITY auth flow_state supabase_auth_admin
+4500; 0 16686 ROW SECURITY auth identities supabase_auth_admin
+4497; 0 16522 ROW SECURITY auth instances supabase_auth_admin
+4504; 0 16776 ROW SECURITY auth mfa_amr_claims supabase_auth_admin
+4503; 0 16764 ROW SECURITY auth mfa_challenges supabase_auth_admin
+4502; 0 16751 ROW SECURITY auth mfa_factors supabase_auth_admin
+4510; 0 16939 ROW SECURITY auth one_time_tokens supabase_auth_admin
+4496; 0 16511 ROW SECURITY auth refresh_tokens supabase_auth_admin
+4507; 0 16818 ROW SECURITY auth saml_providers supabase_auth_admin
+4508; 0 16836 ROW SECURITY auth saml_relay_states supabase_auth_admin
+4499; 0 16537 ROW SECURITY auth schema_migrations supabase_auth_admin
+4501; 0 16716 ROW SECURITY auth sessions supabase_auth_admin
+4506; 0 16803 ROW SECURITY auth sso_domains supabase_auth_admin
+4505; 0 16794 ROW SECURITY auth sso_providers supabase_auth_admin
+4495; 0 16499 ROW SECURITY auth users supabase_auth_admin
+4511; 0 17333 ROW SECURITY realtime messages supabase_realtime_admin
+4513; 0 17385 ROW SECURITY storage buckets supabase_storage_admin
+4517; 0 17504 ROW SECURITY storage buckets_analytics supabase_storage_admin
+4518; 0 17517 ROW SECURITY storage buckets_vectors supabase_storage_admin
+4512; 0 17377 ROW SECURITY storage migrations supabase_storage_admin
+4514; 0 17395 ROW SECURITY storage objects supabase_storage_admin
+4515; 0 17444 ROW SECURITY storage s3_multipart_uploads supabase_storage_admin
+4516; 0 17458 ROW SECURITY storage s3_multipart_uploads_parts supabase_storage_admin
+4519; 0 17527 ROW SECURITY storage vector_indexes supabase_storage_admin
+4520; 6104 16430 PUBLICATION - supabase_realtime postgres
+3883; 3466 16575 EVENT TRIGGER - issue_graphql_placeholder supabase_admin
+3886; 3466 16654 EVENT TRIGGER - issue_pg_cron_access supabase_admin
+3888; 3466 16666 EVENT TRIGGER - issue_pg_graphql_access supabase_admin
+3887; 3466 16657 EVENT TRIGGER - issue_pg_net_access supabase_admin
+3884; 3466 16576 EVENT TRIGGER - pgrst_ddl_watch supabase_admin
+3885; 3466 16577 EVENT TRIGGER - pgrst_drop_watch supabase_admin

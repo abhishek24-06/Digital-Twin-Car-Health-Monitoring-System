@@ -75,6 +75,23 @@ Report appended at the end of this file. Not committed.
 
 ## Phase 5 — Full-system acceptance  ✅ implemented (stopped at gate)
 
+## Hardening Phase A — Analyze-endpoint abuse control  ✅ implemented (stopped at gate)
+
+Report appended at the end of this file. Not committed.
+
+## Hardening Phase B — Deployment & migration verification  ✅ implemented (stopped at gate)
+
+Report appended at the end of this file. Not committed.
+
+## Hardening Phase C — Real MQTT integration acceptance  ✅ implemented + verified (stopped at gate)
+
+## Hardening Phase D — Real browser acceptance (all eight tabs)  ✅ implemented + verified (stopped at gate)
+
+## Hardening Phases E–K — Remaining workstreams  ⏳ not started
+
+Reports appended at the end of this file (C real Mosquitto + disposable DB,
+D Playwright + isolated backend). Not committed.
+
 ---
 
 ## Phase 1 report — Correctness and run isolation (appended at gate)
@@ -817,5 +834,277 @@ contract; the Alerts tab renders its loading/error states, by design.
   backend (operational; requires a real `JWT_SECRET`).
 
 **Stopped at gate — awaiting review before any further phase.**
+
+---
+
+## Hardening Phase A report — Analyze-endpoint abuse control (appended at gate)
+
+**Status:** implemented; stopped for review. All work **uncommitted** on `main`.
+Per-user rate limiting plus concurrent-duplicate coalescing for
+`POST /api/v1/vehicles/{id}/health/analyze`. `GET /health/live` stays read-only
+(no limiter, no coordinator) and monitor persistence / current-run isolation
+are untouched.
+
+### What changed
+
+- `backend/app/core/config.py` — new `analysis_rate_limit_enabled` (default
+  true), `analysis_rate_limit_max_requests` (10), and
+  `analysis_rate_limit_window_seconds` (60.0), validated in
+  `_validate_rate_limit_settings` alongside the existing auth limiter.
+- `backend/app/core/rate_limit.py` — new generic `KeyedRateLimitDependency`
+  (parameterised by `settings_prefix`, `key_of`, `detail`) reusing the existing
+  sliding-window `RateLimiter`. It raises a 429 with `Retry-After` and exposes
+  `reset()` / `bucket_count` for tests.
+- `backend/app/services/analysis_coordinator.py` (new) — `AnalysisCoordinator`
+  coalesces only **identical, concurrent** analyses. Key is
+  `(user.id, vehicle_id, window_minutes)`; the first caller (leader) runs the
+  work and followers receive its exact result — or its exact exception — via
+  `asyncio.shield`. A caller arriving after the leader finishes starts a fresh
+  analysis, so sequential/distinct requests are never merged and a report is
+  never served from a stale cache.
+- `backend/app/api/routes/vehicle_health.py` — a `_limit_analysis` dependency
+  enforces the per-user budget before the handler runs, and the analysis runs
+  through the process-wide coordinator. Ownership is still enforced inside the
+  service (keying includes the caller id, so two users can never share a
+  report). Route description documents both behaviours.
+- Frontend — `frontend/src/components/states/feedback.tsx` gained a 429 preset
+  ("Too many requests") so a rate-limit response renders a real message instead
+  of a generic failure.
+
+### Explicit semantics / limitations
+
+- **Identical** = same caller, same vehicle, same `window_minutes`. Distinct or
+  sequential requests are never merged into a cached reply.
+- The coordinator and the limiter are **process-local**, consistent with the
+  platform's documented **single-worker** deployment and the existing in-memory
+  auth limiter. Behind multiple workers each process coalesces/limits its own
+  callers only — a documented limitation, not a silent fallback. A shared
+  (Postgres/Redis) limiter is the follow-up if multi-worker is ever required.
+
+### Tests
+
+- `backend/tests/services/test_analysis_coordinator.py` — 5 unit tests
+  (single-leader coalescing, sequential re-run, distinct keys, follower sees the
+  leader's exception, state cleanup).
+- `backend/tests/api/test_health_analyze_limits.py` — rate-limited 429 without
+  writing a snapshot; disabled limiter is a no-op; two concurrent identical
+  requests → one analysis / one snapshot; distinct windows → two; the key is
+  caller-scoped.
+- `frontend/src/components/states/__tests__/feedback.test.tsx` — 2 tests.
+
+**Stopped at gate — awaiting review before any further phase.**
+
+---
+
+## Hardening Phase B report — Deployment & migration verification (appended at gate)
+
+**Status:** implemented; stopped for review. All work **uncommitted** on `main`.
+
+### What changed
+
+- `backend/app/core/config.py` — `build_id` (default `"unknown"`) and
+  `expected_schema_revision` (default `None`).
+- `backend/app/schemas/health.py` — `DeploymentStatusResponse`.
+- `backend/app/services/deployment_status.py` (new) — read-only helpers:
+  `read_database_schema_revision` (returns `None` for an unmigrated DB and never
+  raises), `detect_features` (reads the generated OpenAPI paths — this FastAPI
+  nests included routers so `app.routes` cannot see them), and
+  `build_diagnostics` (secret-free, human-readable drift explanation).
+- `backend/app/api/routes/health.py` — admin-only `GET /health/deployment`
+  returning version/build/env, DB reachability, expected vs. actual Alembic
+  revision, `migration_in_sync`, feature flags, and diagnostics. It never
+  applies a migration and never exposes secrets or connection strings. `/` and
+  `/db` are unchanged.
+- `docs/DEPLOYMENT_AND_OPERATIONS.md` (new) — build identity, the verification
+  endpoint, the required-secret rules, the reviewed-migration procedure with a
+  mandatory backup, a disposable local upgrade/downgrade drill, restart
+  guidance, the single-worker model, and backup/DR assumptions.
+
+### Tests
+
+- `backend/tests/api/test_deployment_status.py` — 401 without a token, 403 for a
+  non-admin, feature flags with an unconfigured expected revision, and schema
+  drift detected via a temporary `alembic_version` row (with cleanup).
+
+### Honest deployment caveats (not fixed by this phase)
+
+- The **running backend on :8000 is stale** (pre-Phase-3; it does not expose
+  `/alerts`), and the **hosted DB is not migrated** to head `e5f6a7b8c9d0`.
+  Neither was changed: restarting the backend / migrating the hosted DB is an
+  operator action requiring a real `JWT_SECRET` and a backup.
+- Rate limiting and coalescing are **process-local** (single-worker deployment),
+  as noted in Phase A.
+
+**Stopped at gate — awaiting review before any further phase.**
+
+---
+
+## Hardening Phases A & B — verification (appended at gate)
+
+Read-only verification of the working tree; nothing here touched the hosted DB
+or the running backend.
+
+| Gate | Command (from `backend/` unless noted) | Result |
+|---|---|---|
+| Full backend suite | `python -m pytest -p no:cacheprovider -q` | 744 collected; **0 failed / 0 errors** (100%, only `.`/`s`), **10 skipped** — see note |
+| Phase A/B targeted | `python -m pytest tests/services/test_analysis_coordinator.py tests/api/test_health_analyze_limits.py tests/api/test_deployment_status.py -q` | **14 passed** |
+| Full backend suite (Step 1, captured rerun) | `python -m pytest -p no:cacheprovider -q` | **737 passed, 10 skipped, 11 deselected, exit 0** (588.92s) |
+| Step 1 focused rerun | `python -m pytest tests/services/test_analysis_coordinator.py tests/api/test_deployment_status.py tests/api/test_health_analyze_limits.py` | **17 passed** (exit 0) |
+| Backend lint | `python -m ruff check app tests` | All checks passed! (exit 0) |
+| Alembic heads | `python -m alembic heads` | single head `e5f6a7b8c9d0` (exit 0) |
+| Frontend tests | `npx vitest run` | **175 passed (27 files)** (exit 0) |
+| Frontend typecheck | `npx tsc --noEmit` | clean (exit 0) |
+| Frontend lint | `npx eslint .` | clean (exit 0) |
+
+Notes:
+
+- **Step 1 rerun (captured):** the full backend suite was rerun with the process
+  exit code redirected to a file (no pipe), yielding the exact summary
+  **`737 passed, 10 skipped, 11 deselected in 588.92s`**, process **exit 0**. The
+  11 deselected are the broker-gated `mqtt_e2e` (4) + `mqtt_integration` (7)
+  tests. The earlier streaming run could not report its exit code; this run
+  removes that ambiguity. The Step-1 focused set (coordinator + deployment status
+  + analyze limits) passed **17/17**, exit 0.
+- **OpenAPI:** the current code exposes **39 paths**, including `/alerts/*` and
+  the new `/health/deployment`. The **running backend is stale** (pre-Phase-3,
+  no `/alerts`).
+
+---
+
+## Hardening Phases C–K — remaining workstreams
+
+These are specified, not yet implemented. Status legend:
+**not started** / **implemented** / **tested** / **runtime-verified** /
+**deployed-verified**. Nothing below is claimed until it is verified.
+
+- **C — MQTT end-to-end harness.** ✅ **verified.** Real isolated Mosquitto +
+  disposable `digital_twin_mqtt_test` database; 7 scenarios (publish,
+  duplicate, malformed, out-of-order/delayed, broker restart, transient DB
+  failure, retry exhaustion, run-id isolation) pass. `mqtt_integration` marker
+  added; `make mqtt-integration` + `docs/mqtt-integration-testing.md`. See the
+  Phase C report appended below.
+- **D — Playwright browser acceptance of all eight tabs.** ✅ **verified.**
+  `@playwright/test` boots an isolated backend (disposable
+  `digital_twin_browser_test` DB, mock LLM) + real Next.js app; 7/7 tests pass
+  (auth redirect, bad password, all eight tabs, deterministic agent diagnosis,
+  cross-account refusal, phone layout, clean console/network). See the Phase D
+  report appended below.
+- **E — Simulation lifecycle + multi-worker safety.** Implemented
+  single-worker; multi-worker safety unverified. *Status: partially
+  implemented, not multi-worker-verified.*
+- **F — AI/RAG reliability + offline evaluation.** RAG is disabled in tests;
+  no offline eval harness. *Status: not started.*
+- **G — Historical analytics scaling.** *Status: not started.*
+- **H — Observability/recovery.** Structured logs + `/health/deployment` exist;
+  metrics/alerting/recovery drills outstanding. *Status: partially
+  implemented.*
+- **I — Security/deployment hardening.** Weak `.env` `JWT_SECRET` (P2-4)
+  remains; app fails closed without a strong secret. *Status: partially
+  implemented; not deployed-verified.*
+- **J — Backup/DR.** Documented in `docs/DEPLOYMENT_AND_OPERATIONS.md` §9;
+  no restore drill executed. *Status: documented, not verified.*
+- **K — Documentation gates.** Roadmap/audit/deployment docs updated; a
+  doc-consistency gate is not automated. *Status: partially implemented.*
+
+---
+
+## Hardening Phase C report — Real MQTT integration acceptance (appended at gate)
+
+**Status:** implemented + verified; stopped for review. Uncommitted on `main`.
+
+### What changed
+
+- `backend/tests/mqtt/conftest.py` (new) — real isolated components:
+  a private `mosquitto` on a free loopback port with `persistence false`, and a
+  dedicated disposable PostgreSQL database.
+- `backend/tests/mqtt/test_mqtt_integration.py` (new) — 7 scenarios.
+- `backend/pyproject.toml` — `mqtt_integration` marker registered; `addopts`
+  now deselects both `mqtt_e2e` and `mqtt_integration`.
+- `backend/scripts/run_mqtt_integration.py` (new) + `make mqtt-integration` —
+  documented runner with a loopback default DB.
+- `docs/mqtt-integration-testing.md` (new).
+
+### Safety contract (fail-closed)
+
+The suite skips when `DT_MQTT_TEST_DATABASE_URL` is unset. When set, the target
+must be loopback **and** the database must be exactly `digital_twin_mqtt_test`;
+hosted markers (`supabase`, `pooler`, `amazonaws`, `render.com`, `neon.tech`)
+abort with `RuntimeError`. The broker never shares state with a developer
+broker, and the disposable database is cleaned up even after failures.
+
+### Executed (exact)
+
+| Command (from `backend/`) | Result |
+| --- | --- |
+| `python -m pytest -m mqtt_integration tests/mqtt` | **7 passed, 61 deselected** in 30.60s (exit 0) |
+| `python -m pytest -m mqtt_e2e tests/mqtt` | **4 skipped, 64 deselected** (exit 0; no broker on :1883) |
+| fail-closed probe with host `db.supabase.co` | `RuntimeError`, exit 1 |
+
+Scenarios: publish + persistence, duplicate `event_id`, malformed / unknown /
+unrelated topics, delayed + out-of-order timestamps, broker restart, transient
+DB failure, retry exhaustion, and run-id isolation.
+
+### Honest caveats
+
+- Workflow events are not asserted here: `publish_workflow_event` uses the
+  global bus whose persister is wired only at app startup, so the suite asserts
+  on persisted telemetry rows instead.
+- Requires a local Mosquitto install and local Postgres; it is intentionally
+  outside the ordinary unit run.
+
+---
+
+## Hardening Phase D report — Real browser acceptance, all eight tabs (appended at gate)
+
+**Status:** implemented + verified; stopped for review. Uncommitted on `main`.
+
+### What changed
+
+- `frontend/playwright.config.ts` (new) — Playwright boots **two** isolated
+  servers: the real backend via `backend/scripts/run_e2e_backend.py` and the
+  real Next.js app (`next dev`), with `NEXT_PUBLIC_API_URL`/`BACKEND_API_URL`
+  forced at the isolated backend.
+- `backend/scripts/run_e2e_backend.py` (new) — fail-closed launcher: requires a
+  loopback database named exactly `digital_twin_browser_test`, creates the
+  schema without `rag_*` tables (no pgvector needed), seeds two owners/two
+  vehicles/90 telemetry rows, runs the **real** deterministic engine to persist
+  a snapshot, then serves the app with `LLM_*_PROVIDER=mock`, the health monitor
+  disabled and MQTT pointed at a dead port. It **overwrites** `DATABASE_URL`
+  and friends so `backend/.env` can never redirect it at real data.
+- `frontend/e2e/vehicle-acceptance.spec.ts`, `frontend/e2e/support.ts`,
+  `frontend/e2e/README.md` (new); `@playwright/test` added; `npm run test:e2e`.
+- Fix: `frontend/.../vehicle-analytics-view.tsx` grid items gained `min-w-0`
+  (see below).
+
+### Executed (exact)
+
+| Command (from `frontend/`) | Result |
+| --- | --- |
+| `npx playwright test` | **7 passed** (exit 0) |
+
+Covered: unauthenticated redirect; wrong-password rejection; all eight vehicle
+tabs (Overview, Live Health, Simulation, Analytics, Telemetry, AI Diagnosis,
+History, Alerts) rendering their own landmarks in the live app; a real
+deterministic agent diagnosis card; cross-account refusal (403/404, no data);
+no horizontal overflow at 375 px; and no uncaught page errors, failed requests
+or 5xx API responses while visiting every tab.
+
+### Defect found and fixed
+
+The Analytics grid children defaulted to `min-width: auto`, so the 34 rem metric
+table forced a **+216 px** horizontal overflow at a 375 px viewport. Adding
+`min-w-0` to the grid cards fixes it; the phone-layout test now guards it.
+
+### Not covered (honest gaps)
+
+- SSE reconnect after the telemetry/workflow stream drops mid-session.
+- Provider-failure UI (the mock provider never fails; would need a second,
+  failing backend).
+- Alert acknowledge/resolve mutations in the browser.
+
+### Side effects of running `next dev`
+
+Untracked `frontend/AGENTS.md` and `frontend/CLAUDE.md` are generated by the
+Next dev server; they are not hand-authored Phase D changes.
 
 

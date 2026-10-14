@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LiveTelemetryFeed } from "@/components/telemetry/live-telemetry-feed";
+import { formatTime } from "@/lib/format";
 import type { TelemetryEventSourceLike } from "@/lib/telemetry-stream";
 import { telemetryApi } from "@/services/vehicles";
 import { TEST_VEHICLE } from "@/test/utils";
@@ -81,7 +82,7 @@ describe("LiveTelemetryFeed", () => {
     });
 
     await waitFor(() => expect(screen.getByText("Live")).toBeInTheDocument());
-    expect(screen.getByText("3200.00")).toBeInTheDocument();
+    expect(screen.getByText("3,200")).toBeInTheDocument();
     expect(screen.getByText("14.2")).toBeInTheDocument();
     expect(screen.queryByText(/Polling fallback/i)).not.toBeInTheDocument();
   });
@@ -123,6 +124,65 @@ describe("LiveTelemetryFeed", () => {
       { pageSize: 1 },
       expect.any(AbortSignal),
     );
-    expect(screen.getByText("5555.00")).toBeInTheDocument();
+    expect(screen.getByText("5,555")).toBeInTheDocument();
+  });
+
+  it("labels the panel timestamp with the frame clock, not the sample clock", async () => {
+    const log: FakeEventSource[] = [];
+    const { source } = liveFeedWith(log);
+
+    const sampleAt = new Date(Date.now() - 5_000).toISOString();
+    const frameAt = new Date().toISOString();
+    act(() => {
+      source.onopen?.(new Event("open"));
+      source.onmessage?.({
+        data: JSON.stringify(frame([makeSample({ timestamp: sampleAt })], frameAt)),
+      });
+    });
+
+    await waitFor(() => expect(screen.getByText("Live")).toBeInTheDocument());
+    // Values come from the newest sample; the headline clock is the frame time.
+    expect(screen.getByText("3,200")).toBeInTheDocument();
+    const caption = screen.getByText(/Latest frame/);
+    expect(caption.textContent).toContain(formatTime(frameAt));
+  });
+
+  it("drops the polling fallback when switching vehicles", async () => {
+    const polled = makeSample({ rpm: 1111 });
+    vi.spyOn(telemetryApi, "list").mockResolvedValue({
+      items: [polled],
+      page: 1,
+      page_size: 1,
+      total: 1,
+    });
+
+    const log: FakeEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeEventSource(url);
+      log.push(source);
+      return source;
+    };
+    const { rerender } = render(
+      <LiveTelemetryFeed vehicleId="vehicle-a" eventSourceFactory={factory} />,
+    );
+
+    act(() => {
+      log[0].onopen?.(new Event("open"));
+      log[0].onerror?.(new Event("error"));
+    });
+    await waitFor(() => expect(screen.getByText(/Polling fallback/i)).toBeInTheDocument());
+    expect(screen.getByText("1,111")).toBeInTheDocument();
+
+    // New vehicle, healthy stream, no frames yet: the old vehicle's snapshot
+    // must not linger as this vehicle's reading.
+    rerender(<LiveTelemetryFeed vehicleId="vehicle-b" eventSourceFactory={factory} />);
+    act(() => {
+      log[1].onopen?.(new Event("open"));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText(/Waiting for the first frame/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("1,111")).not.toBeInTheDocument();
   });
 });

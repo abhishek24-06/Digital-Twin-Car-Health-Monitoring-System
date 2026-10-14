@@ -16,6 +16,8 @@ Design invariants
 
 from __future__ import annotations
 
+import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -26,6 +28,8 @@ from app.rag.errors import (
     RAGEmbeddingModelUnavailableError,
     RAGUnavailableErrorAlias,
 )
+
+logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - env specific
     from numpy.typing import NDArray
@@ -110,8 +114,14 @@ class SentenceTransformerAdapter(EmbeddingAdapter):
                 kwargs: dict[str, Any] = {}
                 if settings.rag_embedding_device != "auto":
                     kwargs["device"] = settings.rag_embedding_device
+                started = time.perf_counter()
                 self._model = SentenceTransformer(self.model_name, **kwargs)
                 self._model.max_seq_length = settings.rag_embedding_max_length
+                logger.info(
+                    "embedding weights loaded: model=%s elapsed_ms=%.0f",
+                    self.model_name,
+                    (time.perf_counter() - started) * 1000,
+                )
             except Exception as exc:  # pragma: no cover - env specific
                 raise RAGEmbeddingModelUnavailableError(
                     f"embedding model {self.model_name!r} could not load: {exc}"
@@ -142,19 +152,38 @@ class SentenceTransformerAdapter(EmbeddingAdapter):
         return {"adapter": self.name, "dimension": self.dimension, "loaded": loaded}
 
 
+#: Process-wide adapter cache, keyed by the resolved configuration (see
+#: :func:`get_embedding_adapter`).
+_EMBEDDING_CACHE: dict[tuple[Any, ...], EmbeddingAdapter] = {}
+
+
 def get_embedding_adapter(*, force_stub: bool = False) -> EmbeddingAdapter:
     """Return the adapter selected by configuration.
 
     ``force_stub`` is respected by tests/eval so deterministic vectors are
     guaranteed regardless of what ``RAG_EMBEDDING_MODEL`` says.
+
+    Real adapters are cached process-wide by configuration, mirroring the
+    reranker cache: every request builds its own ``RAGService``, so without
+    this cache each query paid a full weight reload before encoding.
     """
     settings = get_rag_settings()
     if force_stub or settings.rag_embedding_model == "stub":
-        return StubEmbeddingAdapter(dimension=_dimension_from_config())
-    return SentenceTransformerAdapter(
-        model_name=settings.rag_embedding_model,
-        dimension=_dimension_from_config(),
-    )
+        key = ("stub", _dimension_from_config())
+        adapter = _EMBEDDING_CACHE.get(key)
+        if adapter is None:
+            adapter = StubEmbeddingAdapter(dimension=_dimension_from_config())
+            _EMBEDDING_CACHE[key] = adapter
+        return adapter
+    key = ("st", settings.rag_embedding_model, _dimension_from_config())
+    adapter = _EMBEDDING_CACHE.get(key)
+    if adapter is None:
+        adapter = SentenceTransformerAdapter(
+            model_name=settings.rag_embedding_model,
+            dimension=_dimension_from_config(),
+        )
+        _EMBEDDING_CACHE[key] = adapter
+    return adapter
 
 
 __all__ = [

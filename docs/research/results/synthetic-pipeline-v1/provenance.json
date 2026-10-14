@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "dataset_id": "synthetic-pipeline-v1",
+    "generated_at": "2026-10-13T15:57:07.077306+00:00",
+    "provenance": "SIMULATED (episodes) + MEASURED (pipeline behavior)",
+    "code_revision": "66674bdccc1b8c6d56cd813cc2bd1d0a2e895f31",
+    "status": "EXECUTED",
+    "commands": [
+      "python -m evaluation.pipeline all"
+    ]
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.14.7",
+    "processor": "ARMv8 (64-bit) Family 8 Model 1 Revision 201, Qualcomm Technologies Inc",
+    "cpu_count": 8,
+    "database_host": "127.0.0.1",
+    "database_name": "digital_twin_eval_test",
+    "broker_host": "127.0.0.1",
+    "broker_port": 60637,
+    "broker_persistence": false,
+    "mqtt_qos": 1,
+    "mqtt_batch_max_messages": 1,
+    "mqtt_batch_flush_seconds": 5.0,
+    "analysis_window_minutes": 15,
+    "expected_interval_seconds": 1.0,
+    "analysis_config_source": "app.core.config.get_settings() (services) + broker-bound copy (MQTT)",
+    "clock_semantics": {
+      "rq3_alerts": "replayed on the episode's synthetic clock: each persisted snapshot is re-analysed with generated_at=point.timestamp and fed to AlertService.sync_from_snapshot in timestamp order",
+      "rq3_recovery": "two sessions on one vehicle: fault session (synthetic clock T) then a condition-free normal session (clock T + 1 day) so the two never overlap",
+      "rq4_latency": "separate wall-clock streaming run (generated_at=None); ingest latency is publish_ts -> persisted created_at using a monotonic clock, so it is host-local and excludes any external network hop",
+      "rq6_robustness": "wall-clock injection against the live subscriber; injected faults and the resulting persisted row counts are measured, not simulated"
+    }
+  },
+  "section_config": {
+    "alerts": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "scenarios": [
+        "normal",
+        "high_temperature",
+        "low_battery",
+        "high_engine_load"
+      ],
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "duration_seconds": 180.0,
+      "recovery_scenarios": [
+        "high_temperature",
+        "low_battery",
+        "high_engine_load"
+      ],
+      "recovery_seed": 1
+    },
+    "latency": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "scenario": "high_temperature",
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "samples": 60,
+      "interval_seconds": 1.0
+    },
+    "robustness": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "seed": 7
+    }
+  }
+}

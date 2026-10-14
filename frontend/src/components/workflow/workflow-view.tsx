@@ -18,22 +18,13 @@ import { PipelineHealth } from "./pipeline-health";
 import { PipelineAgent } from "./pipeline-agent";
 import { Filters } from "./filters";
 import { Overview } from "./overview";
+import { filterEventsByTab, type WorkflowTab } from "./event-categories";
 import type { WorkflowEventFilters, WorkflowEventResponse } from "@/types/api";
-
-type Tab =
-  | "overview"
-  | "telemetry"
-  | "rag-ingestion"
-  | "rag-query"
-  | "health"
-  | "agent"
-  | "simulation"
-  | "system";
 
 const DEFAULT_FILTERS: WorkflowEventFilters = { limit: 100, offset: 0 };
 
 export function WorkflowView() {
-  const [activeTab, setActiveTab] = React.useState<Tab>("overview");
+  const [activeTab, setActiveTab] = React.useState<WorkflowTab>("overview");
   const [paused, setPaused] = React.useState(false);
   const [frozen, setFrozen] = React.useState<WorkflowEventResponse[] | null>(null);
   const [clearedAt, setClearedAt] = React.useState<number | null>(null);
@@ -67,6 +58,15 @@ export function WorkflowView() {
     return list;
   }, [baseEvents, clearedAt, filters]);
 
+  // The active tab narrows the already-toolbar-filtered feed to its workflow
+  // category. Overview intentionally keeps every workflow. This is a pure
+  // projection: the shared buffer is never mutated, so switching tabs cannot
+  // add or drop events from other consumers.
+  const tabEvents = React.useMemo(
+    () => filterEventsByTab(filteredEvents, activeTab),
+    [filteredEvents, activeTab],
+  );
+
   const overviewConnection =
     connection === "live"
       ? "live"
@@ -74,7 +74,7 @@ export function WorkflowView() {
         ? "offline"
         : "reconnecting";
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const tabs: { id: WorkflowTab; label: string; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", icon: <GitBranch className="size-4" /> },
     { id: "telemetry", label: "Telemetry", icon: <GitBranch className="size-4" /> },
     { id: "rag-ingestion", label: "RAG Ingestion", icon: <GitBranch className="size-4" /> },
@@ -97,8 +97,9 @@ export function WorkflowView() {
 
   const clearEvents = () => setClearedAt(Date.now());
 
+  // Export exactly what the active tab shows, so the file matches the screen.
   const exportEvents = () => {
-    const blob = new Blob([JSON.stringify(filteredEvents, null, 2)], {
+    const blob = new Blob([JSON.stringify(tabEvents, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -108,6 +109,9 @@ export function WorkflowView() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+
+  const activeTabLabel =
+    tabs.find((tab) => tab.id === activeTab)?.label ?? "workflow";
 
   return (
     <div className="flex flex-col h-full">
@@ -182,48 +186,47 @@ export function WorkflowView() {
         )}
 
         {activeTab === "telemetry" && (
-          <PipelineTelemetry events={filteredEvents} workflowStatus={workflowStatus} />
+          <PipelineTelemetry events={tabEvents} workflowStatus={workflowStatus} />
         )}
 
         {activeTab === "rag-ingestion" && (
-          <PipelineRAGIngestion events={filteredEvents} />
+          <PipelineRAGIngestion events={tabEvents} />
         )}
 
         {activeTab === "rag-query" && (
-          <PipelineRAGQuery events={filteredEvents} />
+          <PipelineRAGQuery events={tabEvents} />
         )}
 
         {activeTab === "health" && (
-          <PipelineHealth events={filteredEvents} workflowStatus={workflowStatus} />
+          <PipelineHealth events={tabEvents} workflowStatus={workflowStatus} />
         )}
 
         {activeTab === "agent" && (
-          <PipelineAgent events={filteredEvents} />
+          <PipelineAgent events={tabEvents} />
         )}
 
         {activeTab === "simulation" && (
-          <WorkflowEventList
-            title="Simulation events"
-            events={filteredEvents.filter((e) => e.workflow === "simulation")}
-          />
+          <WorkflowEventList title="Simulation events" events={tabEvents} />
         )}
 
         {activeTab === "system" && (
-          <WorkflowEventList
-            title="System events"
-            events={filteredEvents.filter((e) => e.workflow === "system")}
-          />
+          <WorkflowEventList title="System events" events={tabEvents} />
         )}
       </main>
 
       {/* Event timeline at bottom */}
       <div className="border-t border-line">
         <EventTimeline
-          events={filteredEvents}
-          total={filteredEvents.length}
+          events={tabEvents}
+          total={tabEvents.length}
           isLoading={false}
           onExport={exportEvents}
           onClear={clearEvents}
+          emptyHint={
+            activeTab === "overview"
+              ? undefined
+              : `No ${activeTabLabel} events match the current filters yet.`
+          }
         />
       </div>
     </div>

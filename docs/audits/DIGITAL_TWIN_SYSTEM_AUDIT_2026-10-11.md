@@ -844,3 +844,89 @@ was made.
 
 
 
+
+---
+
+## Follow-up (2026-10-13) — Hardening Phases A & B
+
+Two findings from this audit were addressed in code (uncommitted on `main`;
+details and test evidence in `docs/IMPLEMENTATION_ROADMAP.md`, sections
+"Hardening Phase A/B report").
+
+### A — `POST /health/analyze` write amplification (addresses P2-5)
+
+- Per-authenticated-user sliding-window rate limit on the manual analysis
+  trigger (defaults: 10 requests / 60 s, configurable, enabled by default),
+  returning `429` with `Retry-After`. `GET /health/live` remains read-only and
+  untouched.
+- A process-local `AnalysisCoordinator` coalesces *identical, concurrent*
+  analyses (key `(user, vehicle, window_minutes)`); distinct or sequential
+  requests are never merged and a report is never served from a stale cache.
+- Frontend renders a dedicated "too many requests" state for a 429.
+- Limitation: both the limiter and the coordinator are process-local, matching
+  the documented single-worker deployment. A shared limiter is required before
+  multi-worker.
+
+### B — Deployment / migration verification
+
+- Admin-only, read-only `GET /api/v1/health/deployment` reports app version,
+  `build_id`, environment, DB reachability, expected vs. actual Alembic
+  revision, `migration_in_sync`, the feature routes the running process
+  actually exposes, and secret-free diagnostics. It never applies a migration.
+- Adds `docs/DEPLOYMENT_AND_OPERATIONS.md` with the reviewed-migration and
+  restart procedure (mandatory backup; never downgrade a hosted DB).
+
+### Still open (unchanged by A/B)
+
+- **Running backend is stale** (pre-Phase-3; no `/alerts`); the **hosted DB is
+  not migrated** to head `e5f6a7b8c9d0`. Both require an operator action with a
+  real `JWT_SECRET` and a backup.
+- **P2-4**: `backend/.env` still carries a placeholder `JWT_SECRET`; the app
+  fails closed without a strong secret (`.env` was not edited).
+- Hardening **Phases C–K** (MQTT E2E, browser acceptance, multi-worker safety,
+  RAG evaluation, analytics scaling, observability, security, backup/DR,
+  doc gates) remain — see the checklist in the roadmap.
+
+## Follow-up (2026-10-13) — Hardening Phases C & D (verified)
+
+Both phases now have reproducible acceptance harnesses that were executed
+against real components (not mocks that hide failures). Evidence and exact
+commands live in `docs/IMPLEMENTATION_ROADMAP.md`.
+
+### C — Real MQTT integration acceptance (VERIFIED)
+
+- A private `mosquitto` process on a free loopback port (`persistence false`)
+  plus a dedicated disposable database (`digital_twin_mqtt_test`, loopback
+  only, fail-closed) exercise broker → subscriber → PostgreSQL for real.
+- Suite `backend/tests/mqtt/test_mqtt_integration.py` (`-m mqtt_integration`):
+  **7 passed, 61 deselected** (exit 0). Covers publish + persistence,
+  duplicate delivery, malformed/unknown/unrelated topics, delayed/out-of-order
+  timestamps, broker restart, transient DB failure, retry exhaustion and
+  run-id isolation.
+- Fail-closed check confirmed: a hosted host (`db.supabase.co`) raises
+  `RuntimeError` (exit 1) instead of connecting.
+- The legacy `mqtt_e2e` tests (4) still skip cleanly when no broker is on
+  `localhost:1883`; the ordinary unit run excludes both MQTT markers, so it
+  never needs a broker.
+
+### D — Real browser acceptance, all eight tabs (VERIFIED)
+
+- `@playwright/test` boots the real Next.js app against an isolated real
+  backend (disposable `digital_twin_browser_test`, `LLM_*_PROVIDER=mock`,
+  health monitor disabled, MQTT pointed at a dead port). The launcher is
+  fail-closed on a non-loopback/incorrectly named database.
+- `frontend/e2e/vehicle-acceptance.spec.ts`: **7 passed** (exit 0) —
+  unauthenticated redirect, rejected bad password, all eight vehicle tabs
+  rendering their own headings in the live app, a real deterministic agent
+  diagnosis card, 403/404 cross-account refusal (no data leak), no horizontal
+  overflow at 375 px, and no uncaught page errors / failed API calls / 5xx
+  while visiting every tab.
+- A real responsive defect was found and fixed during this phase: the
+  Analytics grid items lacked `min-width: 0`, so the 34 rem metric table
+  forced a +216 px horizontal overflow on a phone. The regression test above
+  now guards it.
+
+### Still open (unchanged)
+
+- The stale running backend / unmigrated hosted DB, the weak `.env`
+  `JWT_SECRET`, and Products E–K remain operator/roadmap items.

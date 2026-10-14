@@ -17,6 +17,7 @@ caller (each search runs in the caller's transaction).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
@@ -46,6 +47,18 @@ from app.schemas.workflow import (
 from app.services.workflow_event_bus import publish_workflow_event
 
 logger = logging.getLogger(__name__)
+
+
+async def _run_blocking(func, /, *args, **kwargs):
+    """Run CPU-bound model work in a worker thread.
+
+    Embedding encoding and cross-encoder reranking block for seconds on CPU.
+    Awaiting them on the event loop stalls every other request, stream, and
+    the health-monitor tick on this worker (observed: one 114 s rerank froze
+    the whole API and starved the DB pool while a pooled connection sat
+    checked out for the entire request).
+    """
+    return await asyncio.to_thread(func, *args, **kwargs)
 
 
 class RAGService:
@@ -163,7 +176,7 @@ class RAGService:
 
         start_time = time.perf_counter()
         embedder = self._embedding_adapter()
-        vec = embedder.encode([q], normalize=True)
+        vec = await _run_blocking(embedder.encode, [q], normalize=True)
         query_vector = vec[0] if len(vec.shape) > 1 else vec
         embedding_duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -250,7 +263,8 @@ class RAGService:
             )
 
         rerank_start = time.perf_counter()
-        evidence = rerank_and_select(
+        evidence = await _run_blocking(
+            rerank_and_select,
             candidates,
             q,
             reranker,
@@ -511,7 +525,7 @@ class RAGService:
         )
         start_time = time.perf_counter()
         embedder = self._embedding_adapter()
-        vec = embedder.encode([query_text], normalize=True)
+        vec = await _run_blocking(embedder.encode, [query_text], normalize=True)
         query_vector = vec[0] if len(vec.shape) > 1 else vec
         embedding_duration_ms = (time.perf_counter() - start_time) * 1000
         await publish_workflow_event(
@@ -593,7 +607,8 @@ class RAGService:
             )
 
         rerank_start = time.perf_counter()
-        evidence = rerank_and_select(
+        evidence = await _run_blocking(
+            rerank_and_select,
             candidates,
             query_text,
             reranker,

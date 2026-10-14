@@ -1,0 +1,475 @@
+{
+  "dataset_id": "synthetic-scenarios-v1",
+  "generator": "backend/simulator/telemetry_generator.SimulationEngine (unmodified)",
+  "description": "Deterministic synthetic fault episodes from the in-repo simulator.",
+  "reference_source": "harness-injected-scenario",
+  "label_method": "injected-physical-condition",
+  "label_version": "1.0",
+  "code_revision": "66674bdccc1b8c6d56cd813cc2bd1d0a2e895f31",
+  "created_at": "2026-10-13T14:45:15.222583Z",
+  "limitations": [
+    "SYNTHETIC ONLY: telemetry comes from the in-repo simulator; this is not real-world validation.",
+    "No independent continuous health reference exists; RQ2 is ordinal discrimination only (no MAE/RMSE/R2).",
+    "No expert-labelled reference diagnoses exist; RQ5 correctness is NOT EVALUABLE (only the grounding contract can be measured).",
+    "The analyzer is deterministic rule logic, not a learned classifier; 'accuracy' means agreement with injected conditions.",
+    "The 'full' view includes cold-start warm-up and is expected to raise false-positive rapid-rise findings.",
+    "Only four simulator scenarios exist; rules without an injected positive control cannot be validated here."
+  ],
+  "episodes": [
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "normal-seed1",
+      "scenario": "normal",
+      "seed": 1,
+      "run_id": "3efb87d4-b1f8-5bc4-8652-bd2ffa028bdf",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "none",
+      "expected_rule_ids": [],
+      "expected_min_severity": "info",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:14.998958Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "normal-seed2",
+      "scenario": "normal",
+      "seed": 2,
+      "run_id": "074870af-d17f-5845-9b05-b0b7bea08f90",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "none",
+      "expected_rule_ids": [],
+      "expected_min_severity": "info",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.010509Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "normal-seed3",
+      "scenario": "normal",
+      "seed": 3,
+      "run_id": "73badc3f-e913-54ee-bc6e-95ed17ff3ff4",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "none",
+      "expected_rule_ids": [],
+      "expected_min_severity": "info",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.022135Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "normal-seed4",
+      "scenario": "normal",
+      "seed": 4,
+      "run_id": "5623cf5f-6733-5541-b372-82a2563182f1",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "none",
+      "expected_rule_ids": [],
+      "expected_min_severity": "info",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.034045Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "normal-seed5",
+      "scenario": "normal",
+      "seed": 5,
+      "run_id": "a9f7b5f6-d493-57b3-89e8-6cb85a5f7b90",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "none",
+      "expected_rule_ids": [],
+      "expected_min_severity": "info",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.046211Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_temperature-seed1",
+      "scenario": "high_temperature",
+      "seed": 1,
+      "run_id": "b4602833-dfbb-5712-a497-76691b512faa",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "thermal",
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.058010Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_temperature-seed2",
+      "scenario": "high_temperature",
+      "seed": 2,
+      "run_id": "ddb78c18-daed-5677-b150-d8a49dbb8dde",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "thermal",
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.069657Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_temperature-seed3",
+      "scenario": "high_temperature",
+      "seed": 3,
+      "run_id": "4d9d2f75-fdba-5dd2-829b-5ae95eb3c64e",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "thermal",
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.081768Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_temperature-seed4",
+      "scenario": "high_temperature",
+      "seed": 4,
+      "run_id": "c87dd6b4-444e-5439-a6bb-dc0fd9858246",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "thermal",
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.092760Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_temperature-seed5",
+      "scenario": "high_temperature",
+      "seed": 5,
+      "run_id": "ebfcd783-da03-5b4c-bac7-1ac068b2ea05",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "thermal",
+      "expected_rule_ids": [
+        "COOLANT_TEMP_HIGH",
+        "OIL_TEMP_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.104678Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "low_battery-seed1",
+      "scenario": "low_battery",
+      "seed": 1,
+      "run_id": "bed7ef44-6f82-54a5-b3a7-4ce401c3a2b6",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "electrical",
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.116364Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "low_battery-seed2",
+      "scenario": "low_battery",
+      "seed": 2,
+      "run_id": "e63acccf-f972-5ea5-abd6-404fe4f521ac",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "electrical",
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.127723Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "low_battery-seed3",
+      "scenario": "low_battery",
+      "seed": 3,
+      "run_id": "03f324a6-0e01-530c-817d-643d953fc06a",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "electrical",
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.139108Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "low_battery-seed4",
+      "scenario": "low_battery",
+      "seed": 4,
+      "run_id": "ca244827-3e10-5974-b4b4-cb369459234e",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "electrical",
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.150673Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "low_battery-seed5",
+      "scenario": "low_battery",
+      "seed": 5,
+      "run_id": "65bf140f-d509-56b1-b43f-20d0d9913cf4",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "electrical",
+      "expected_rule_ids": [
+        "BATTERY_VOLTAGE_LOW"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.164909Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_engine_load-seed1",
+      "scenario": "high_engine_load",
+      "seed": 1,
+      "run_id": "a39685ca-8a9f-5cb5-8bbc-c4693b3362d6",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "engine_load",
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.175996Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_engine_load-seed2",
+      "scenario": "high_engine_load",
+      "seed": 2,
+      "run_id": "a19ad8f7-7180-58bd-abb7-35271aac818f",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "engine_load",
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.187701Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_engine_load-seed3",
+      "scenario": "high_engine_load",
+      "seed": 3,
+      "run_id": "eb36cdb8-36ea-58fa-bd84-f188848fb225",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "engine_load",
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.199534Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_engine_load-seed4",
+      "scenario": "high_engine_load",
+      "seed": 4,
+      "run_id": "9d3263ac-02e1-58d4-8078-5d875594253a",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "engine_load",
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.210639Z"
+    },
+    {
+      "dataset_id": "synthetic-scenarios-v1",
+      "episode_id": "high_engine_load-seed5",
+      "scenario": "high_engine_load",
+      "seed": 5,
+      "run_id": "332c6fca-81d3-581b-b7ec-eaffa6e2a307",
+      "duration_seconds": 180.0,
+      "interval_seconds": 1.0,
+      "reference_family": "engine_load",
+      "expected_rule_ids": [
+        "ENGINE_LOAD_HIGH"
+      ],
+      "expected_min_severity": "warning",
+      "reference_source": "harness-injected-scenario",
+      "label_method": "injected-physical-condition",
+      "label_version": "1.0",
+      "provenance": "SIMULATED",
+      "limitations": [
+        "synthetic telemetry from the in-repo simulator; not real-world validation",
+        "reference label is the scenario chosen by the harness, not an independent sensor"
+      ],
+      "created_at": "2026-10-13T14:45:15.222557Z"
+    }
+  ]
+}

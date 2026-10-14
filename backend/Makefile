@@ -5,7 +5,7 @@
 # .venv/bin/ -- and recipes invoke tools through `python -m`, so no recipe
 # depends on POSIX-only shell builtins. The interactive Bash `read -p` in
 # `migration` is replaced by a Python prompt (scripts/make_migration.py).
-.PHONY: install dev test lint format migrate migration db-verify db-check db-current db-heads db-history db-reset-local docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker agent-llm-smoke
+.PHONY: install dev test lint format migrate migration db-verify db-check db-current db-heads db-history db-reset-local docker-up docker-down shell up down logs seed-demo-vehicle mqtt-subscriber simulator mqtt-test mqtt-broker mqtt-integration agent-llm-smoke
 
 # Resolved lazily (recursive variable) so `make install` on a fresh checkout
 # sees the venv it just created; falls back to a system `python`.
@@ -104,6 +104,12 @@ mqtt-test:
 # Start a local (loopback-only, anonymous) Mosquitto broker for development.
 mqtt-broker:
 	mosquitto -c infrastructure/mosquitto/mosquitto.local.conf
+
+# Phase C integration suite: real isolated Mosquitto + disposable database.
+# Expects a local Mosquitto install; the disposable database URL defaults to a
+# loopback `digital_twin_mqtt_test`. See docs/mqtt-integration-testing.md.
+mqtt-integration:
+	$(PY) -m scripts.run_mqtt_integration
 
 # ------------------------------------------------------------------ Phase 4
 

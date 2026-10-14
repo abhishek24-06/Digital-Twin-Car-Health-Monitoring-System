@@ -57,9 +57,10 @@ include = ["app*", "simulator*", "scripts*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-q -m 'not mqtt_e2e'"
+addopts = "-q -m 'not mqtt_e2e and not mqtt_integration'"
 markers = [
     "mqtt_e2e: requires a running MQTT broker (runs with `make mqtt-test`)",
+    "mqtt_integration: real isolated broker + disposable database (runs with `make mqtt-integration`)",
 ]
 
 [tool.ruff]

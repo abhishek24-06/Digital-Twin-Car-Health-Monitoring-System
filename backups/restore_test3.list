@@ -1,0 +1,51 @@
+288; 1259 26110 TABLE public agent_diagnoses postgres
+292; 1259 26551 TABLE public alembic_version postgres
+290; 1259 26146 TABLE public rag_chunks postgres
+285; 1259 26064 TABLE public rag_document_versions postgres
+283; 1259 26040 TABLE public rag_documents postgres
+286; 1259 26081 TABLE public refresh_tokens postgres
+291; 1259 26164 TABLE public telemetry_records postgres
+284; 1259 26053 TABLE public users postgres
+289; 1259 26131 TABLE public vehicle_health_snapshots postgres
+287; 1259 26094 TABLE public vehicles postgres
+4565; 0 26110 TABLE DATA public agent_diagnoses postgres
+4569; 0 26551 TABLE DATA public alembic_version postgres
+4567; 0 26146 TABLE DATA public rag_chunks postgres
+4562; 0 26064 TABLE DATA public rag_document_versions postgres
+4560; 0 26040 TABLE DATA public rag_documents postgres
+4563; 0 26081 TABLE DATA public refresh_tokens postgres
+4568; 0 26164 TABLE DATA public telemetry_records postgres
+4561; 0 26053 TABLE DATA public users postgres
+4566; 0 26131 TABLE DATA public vehicle_health_snapshots postgres
+4564; 0 26094 TABLE DATA public vehicles postgres
+4278; 2606 26118 CONSTRAINT public agent_diagnoses agent_diagnoses_pkey postgres
+4301; 2606 26555 CONSTRAINT public alembic_version alembic_version_pkc postgres
+4290; 2606 26153 CONSTRAINT public rag_chunks rag_chunks_pkey postgres
+4265; 2606 26071 CONSTRAINT public rag_document_versions rag_document_versions_pkey postgres
+4256; 2606 26050 CONSTRAINT public rag_documents rag_documents_canonical_source_key postgres
+4258; 2606 26048 CONSTRAINT public rag_documents rag_documents_pkey postgres
+4272; 2606 26085 CONSTRAINT public refresh_tokens refresh_tokens_pkey postgres
+4298; 2606 26171 CONSTRAINT public telemetry_records telemetry_records_pkey postgres
+4292; 2606 26155 CONSTRAINT public rag_chunks uq_rag_chunk_version_index postgres
+4267; 2606 26073 CONSTRAINT public rag_document_versions uq_rag_version_document_version postgres
+4261; 2606 26062 CONSTRAINT public users users_pkey postgres
+4284; 2606 26138 CONSTRAINT public vehicle_health_snapshots vehicle_health_snapshots_pkey postgres
+4276; 2606 26102 CONSTRAINT public vehicles vehicles_pkey postgres
+4334; 2606 26124 FK CONSTRAINT public agent_diagnoses agent_diagnoses_user_id_fkey postgres
+4335; 2606 26119 FK CONSTRAINT public agent_diagnoses agent_diagnoses_vehicle_id_fkey postgres
+4337; 2606 26156 FK CONSTRAINT public rag_chunks rag_chunks_document_version_id_fkey postgres
+4331; 2606 26074 FK CONSTRAINT public rag_document_versions rag_document_versions_document_id_fkey postgres
+4332; 2606 26086 FK CONSTRAINT public refresh_tokens refresh_tokens_user_id_fkey postgres
+4338; 2606 26172 FK CONSTRAINT public telemetry_records telemetry_records_vehicle_id_fkey postgres
+4336; 2606 26139 FK CONSTRAINT public vehicle_health_snapshots vehicle_health_snapshots_vehicle_id_fkey postgres
+4333; 2606 26103 FK CONSTRAINT public vehicles vehicles_owner_user_id_fkey postgres
+4279; 1259 26130 INDEX public ix_agent_diagnoses_vehicle_created_at postgres
+4280; 1259 26129 INDEX public ix_agent_diagnoses_vehicle_trigger_created postgres
+4293; 1259 26178 INDEX public ix_telemetry_records_timestamp postgres
+4294; 1259 26179 INDEX public ix_telemetry_records_vehicle_id postgres
+4295; 1259 26180 INDEX public ix_telemetry_records_vehicle_id_timestamp postgres
+4296; 1259 27346 INDEX public ix_telemetry_records_vehicle_run_timestamp postgres
+4259; 1259 26063 INDEX public ix_users_email postgres
+4273; 1259 26109 INDEX public ix_vehicles_owner_user_id postgres
+4274; 1259 26108 INDEX public ix_vehicles_vin postgres
+4299; 1259 26177 INDEX public uq_telemetry_records_vehicle_source_event postgres

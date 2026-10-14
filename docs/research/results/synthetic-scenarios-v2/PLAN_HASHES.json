@@ -1,0 +1,19 @@
+{
+  "purpose": "Content hashes of the frozen pre-registration and metric implementation used to produce this result set. Any change to these files invalidates the pre-registration and requires a new dataset_id.",
+  "algorithm": "sha256",
+  "dataset_id": "synthetic-scenarios-v2",
+  "label_version": "1.0",
+  "code_revision": "66674bdccc1b8c6d56cd813cc2bd1d0a2e895f31",
+  "files": {
+    "docs/research/accuracy_evaluation_plan.md": "b50f96bde7bc3822fc37e3792217f7a8be7e427a81cc871757f6d6e55556c8b5",
+    "backend/evaluation/registry.py": "74a60d309d8e560315cfba1fe5340950ac9fc1e7faadf5538860a49fedaf5a98",
+    "backend/evaluation/analysis.py": "9cccb51d3780d051af4d0600e6930bd992833a19f8bf1123f797581bb2a5a422",
+    "backend/evaluation/report.py": "c055a25b636c198a89b8ee3afe7e5627a8814bc4db66cec0d56d7b7eb4ceb150",
+    "backend/evaluation/metrics/detection.py": "debdb7b8f4885a4192129276b21e64d075bc07071b9baa8adde124b63785b617",
+    "backend/evaluation/metrics/health.py": "bc023dff6e3e4fbac105ef4babdbceb31a48d0e7ba3bc0042deca69df8badf22",
+    "backend/evaluation/metrics/latency.py": "c70ed1b18e770148d0deb7db3ad9f9ec7421fbcd5317f4cf6fa79d9661dbff30",
+    "backend/evaluation/metrics/diagnosis.py": "64a2e7827c98eb0b0c9849d8c2307a57feb2f654a77674116f3ac5e1ba8bb347",
+    "backend/evaluation/scenarios.py": "8942f390c72bbeb3239c6ccea0190c6f277145c0fe72a597a7c5d838c7fd428f",
+    "backend/evaluation/runner.py": "d6cc6a70dca07a4326efca5caaf57c33caceb52623170053afc33ad6a133d692"
+  }
+}

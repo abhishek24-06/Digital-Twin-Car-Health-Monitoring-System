@@ -33,7 +33,10 @@ export function MetricTile({
 
   const seriesValues = React.useMemo(
     () =>
-      samples
+      [...samples]
+        // Sparklines read left-to-right as oldest → newest; callers pass the
+        // API's newest-first order, so sort chronologically first.
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
         .map((sample) => sample[metric as keyof TelemetryResponse])
         .filter((value): value is number => typeof value === "number"),
     [samples, metric],

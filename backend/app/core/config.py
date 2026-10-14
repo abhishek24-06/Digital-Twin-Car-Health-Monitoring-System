@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
 
+    # Deployment verification (Phase B). ``build_id`` is stamped by the
+    # deployment (git SHA, image tag, ...) so a running server can be matched to
+    # the artifact it came from. ``expected_schema_revision`` is the Alembic
+    # revision this build targets; when set, the deployment-status endpoint
+    # compares it with the database's recorded revision and reports drift
+    # without ever applying a migration.
+    build_id: str = "unknown"
+    expected_schema_revision: str | None = None
+
     database_url: str
 
     cors_origins: list[str] = ["http://localhost:3000"]
@@ -121,6 +130,15 @@ class Settings(BaseSettings):
     auth_rate_limit_enabled: bool = True
     auth_rate_limit_max_requests: int = 10
     auth_rate_limit_window_seconds: float = 60.0
+
+    # Manual analysis-trigger abuse control (Phase A). POST /health/analyze runs
+    # two wide telemetry range scans plus a full deterministic analysis and
+    # writes a snapshot per call, so a single client can amplify database and
+    # CPU load by hammering it. This is a per-authenticated-user budget, kept
+    # separate from the credential-endpoint limiter.
+    analysis_rate_limit_enabled: bool = True
+    analysis_rate_limit_max_requests: int = 10
+    analysis_rate_limit_window_seconds: float = 60.0
 
     # Realtime delivery
     telemetry_stream_poll_seconds: float = 1.0
@@ -195,6 +213,10 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_RATE_LIMIT_MAX_REQUESTS must be >= 1")
         if self.auth_rate_limit_window_seconds <= 0:
             raise ValueError("AUTH_RATE_LIMIT_WINDOW_SECONDS must be > 0")
+        if self.analysis_rate_limit_max_requests < 1:
+            raise ValueError("ANALYSIS_RATE_LIMIT_MAX_REQUESTS must be >= 1")
+        if self.analysis_rate_limit_window_seconds <= 0:
+            raise ValueError("ANALYSIS_RATE_LIMIT_WINDOW_SECONDS must be > 0")
         return self
 
     @model_validator(mode="after")

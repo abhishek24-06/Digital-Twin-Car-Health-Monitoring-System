@@ -1,0 +1,3643 @@
+{
+  "meta": {
+    "dataset_id": "synthetic-pipeline-v1",
+    "generated_at": "2026-10-13T15:57:07.077306+00:00",
+    "provenance": "SIMULATED (episodes) + MEASURED (pipeline behavior)",
+    "code_revision": "66674bdccc1b8c6d56cd813cc2bd1d0a2e895f31",
+    "status": "EXECUTED",
+    "commands": [
+      "python -m evaluation.pipeline all"
+    ]
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.14.7",
+    "processor": "ARMv8 (64-bit) Family 8 Model 1 Revision 201, Qualcomm Technologies Inc",
+    "cpu_count": 8,
+    "database_host": "127.0.0.1",
+    "database_name": "digital_twin_eval_test",
+    "broker_host": "127.0.0.1",
+    "broker_port": 60637,
+    "broker_persistence": false,
+    "mqtt_qos": 1,
+    "mqtt_batch_max_messages": 1,
+    "mqtt_batch_flush_seconds": 5.0,
+    "analysis_window_minutes": 15,
+    "expected_interval_seconds": 1.0,
+    "analysis_config_source": "app.core.config.get_settings() (services) + broker-bound copy (MQTT)",
+    "clock_semantics": {
+      "rq3_alerts": "replayed on the episode's synthetic clock: each persisted snapshot is re-analysed with generated_at=point.timestamp and fed to AlertService.sync_from_snapshot in timestamp order",
+      "rq3_recovery": "two sessions on one vehicle: fault session (synthetic clock T) then a condition-free normal session (clock T + 1 day) so the two never overlap",
+      "rq4_latency": "separate wall-clock streaming run (generated_at=None); ingest latency is publish_ts -> persisted created_at using a monotonic clock, so it is host-local and excludes any external network hop",
+      "rq6_robustness": "wall-clock injection against the live subscriber; injected faults and the resulting persisted row counts are measured, not simulated"
+    }
+  },
+  "alerts": {
+    "provenance": "SIMULATED episode labels; MEASURED alert materialization",
+    "config": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "scenarios": [
+        "normal",
+        "high_temperature",
+        "low_battery",
+        "high_engine_load"
+      ],
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "duration_seconds": 180.0,
+      "recovery_scenarios": [
+        "high_temperature",
+        "low_battery",
+        "high_engine_load"
+      ],
+      "recovery_seed": 1
+    },
+    "summary": {
+      "episodes": 12,
+      "positive_episodes": 9,
+      "exposure_hours": 0.6,
+      "episodes_detected": 9,
+      "episodes_missed": 0,
+      "episode_recall": 1.0,
+      "episode_precision": 0.75,
+      "detected_episode_ids": [
+        "high_temperature-seed1",
+        "high_temperature-seed2",
+        "high_temperature-seed3",
+        "low_battery-seed1",
+        "low_battery-seed2",
+        "low_battery-seed3",
+        "high_engine_load-seed1",
+        "high_engine_load-seed2",
+        "high_engine_load-seed3"
+      ],
+      "missed_episode_ids": [],
+      "false_positive_episode_ids": [
+        "normal-seed1",
+        "normal-seed2",
+        "normal-seed3"
+      ],
+      "alerts_total": 36,
+      "alerts_matching": 12,
+      "alerts_false_positive": 24,
+      "alert_precision": 0.333333,
+      "expected_rule_pairs": 12,
+      "expected_rule_pairs_hit": 12,
+      "expected_rule_recall": 1.0,
+      "false_alarms_per_vehicle_hour": 40.0,
+      "duplicate_alert_rows": 0,
+      "duplicate_alert_rows_by_episode": {},
+      "recurrence_updates_total": 5752,
+      "time_to_first_detection_seconds": {
+        "count": 9,
+        "min": 1.0,
+        "p50": 22.0,
+        "p95": null,
+        "p95_justified": false,
+        "p99": null,
+        "p99_justified": false,
+        "max": 46.0,
+        "mean": 23.222
+      },
+      "time_to_first_detection_n": 9,
+      "time_to_resolution_seconds": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p95": null,
+        "p95_justified": false,
+        "p99": null,
+        "p99_justified": false,
+        "max": null,
+        "mean": null
+      },
+      "time_to_resolution_n": 0,
+      "unresolved_alerts": 36,
+      "resolved_alerts": 0,
+      "alerts_provisional_at_create": 30,
+      "alerts_definitive_at_create": 6,
+      "cold_start_false_positive_alerts": 6,
+      "by_reference_family": {
+        "none": {
+          "episodes": 3,
+          "detected": 0,
+          "alerts": 6,
+          "false_positive_alerts": 6
+        },
+        "thermal": {
+          "episodes": 3,
+          "detected": 3,
+          "alerts": 12,
+          "false_positive_alerts": 6
+        },
+        "electrical": {
+          "episodes": 3,
+          "detected": 3,
+          "alerts": 9,
+          "false_positive_alerts": 6
+        },
+        "engine_load": {
+          "episodes": 3,
+          "detected": 3,
+          "alerts": 9,
+          "false_positive_alerts": 6
+        }
+      },
+      "incomplete_episode_ids": [],
+      "per_episode": [
+        {
+          "episode_id": "normal-seed1",
+          "scenario": "normal",
+          "seed": 1,
+          "reference_family": "none",
+          "expected_rule_ids": [],
+          "detected": false,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "normal-seed2",
+          "scenario": "normal",
+          "seed": 2,
+          "reference_family": "none",
+          "expected_rule_ids": [],
+          "detected": false,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "normal-seed3",
+          "scenario": "normal",
+          "seed": 3,
+          "reference_family": "none",
+          "expected_rule_ids": [],
+          "detected": false,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_temperature-seed1",
+          "scenario": "high_temperature",
+          "seed": 1,
+          "reference_family": "thermal",
+          "expected_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "matching_alerts": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_temperature-seed2",
+          "scenario": "high_temperature",
+          "seed": 2,
+          "reference_family": "thermal",
+          "expected_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "matching_alerts": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_temperature-seed3",
+          "scenario": "high_temperature",
+          "seed": 3,
+          "reference_family": "thermal",
+          "expected_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "matching_alerts": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "low_battery-seed1",
+          "scenario": "low_battery",
+          "seed": 1,
+          "reference_family": "electrical",
+          "expected_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "detected": true,
+          "alerts": [
+            "BATTERY_VOLTAGE_LOW",
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "low_battery-seed2",
+          "scenario": "low_battery",
+          "seed": 2,
+          "reference_family": "electrical",
+          "expected_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "detected": true,
+          "alerts": [
+            "BATTERY_VOLTAGE_LOW",
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "low_battery-seed3",
+          "scenario": "low_battery",
+          "seed": 3,
+          "reference_family": "electrical",
+          "expected_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "detected": true,
+          "alerts": [
+            "BATTERY_VOLTAGE_LOW",
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "matching_alerts": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_engine_load-seed1",
+          "scenario": "high_engine_load",
+          "seed": 1,
+          "reference_family": "engine_load",
+          "expected_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "ENGINE_LOAD_HIGH"
+          ],
+          "matching_alerts": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_engine_load-seed2",
+          "scenario": "high_engine_load",
+          "seed": 2,
+          "reference_family": "engine_load",
+          "expected_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "ENGINE_LOAD_HIGH"
+          ],
+          "matching_alerts": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        },
+        {
+          "episode_id": "high_engine_load-seed3",
+          "scenario": "high_engine_load",
+          "seed": 3,
+          "reference_family": "engine_load",
+          "expected_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "detected": true,
+          "alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE",
+            "ENGINE_LOAD_HIGH"
+          ],
+          "matching_alerts": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "false_positive_alerts": [
+            "RAPID_COOLANT_RISE",
+            "RAPID_OIL_TEMP_RISE"
+          ],
+          "monitor_passes": 180,
+          "failed_passes": 0,
+          "snapshots_persisted": 180
+        }
+      ]
+    },
+    "publish_stats": [
+      {
+        "episode_id": "normal-seed1",
+        "scenario": "normal",
+        "seed": 1,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "normal-seed2",
+        "scenario": "normal",
+        "seed": 2,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "normal-seed3",
+        "scenario": "normal",
+        "seed": 3,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_temperature-seed1",
+        "scenario": "high_temperature",
+        "seed": 1,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_temperature-seed2",
+        "scenario": "high_temperature",
+        "seed": 2,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_temperature-seed3",
+        "scenario": "high_temperature",
+        "seed": 3,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "low_battery-seed1",
+        "scenario": "low_battery",
+        "seed": 1,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "low_battery-seed2",
+        "scenario": "low_battery",
+        "seed": 2,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "low_battery-seed3",
+        "scenario": "low_battery",
+        "seed": 3,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_engine_load-seed1",
+        "scenario": "high_engine_load",
+        "seed": 1,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_engine_load-seed2",
+        "scenario": "high_engine_load",
+        "seed": 2,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      },
+      {
+        "episode_id": "high_engine_load-seed3",
+        "scenario": "high_engine_load",
+        "seed": 3,
+        "published": 180,
+        "persisted": 180,
+        "dataloss": 0
+      }
+    ],
+    "scope_counts": {
+      "current_session": 2160
+    },
+    "episodes": [
+      {
+        "episode_id": "normal-seed1",
+        "scenario": "normal",
+        "seed": 1,
+        "run_id": "d9ca9bb5-08ad-59b2-a673-7f087123839b",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "a9b94248-0e42-4e58-b919-92b3358973f5",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "d9ca9bb5-08ad-59b2-a673-7f087123839b",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "7789d3c1-6101-4723-b6f4-37af8b1a9069",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "d9ca9bb5-08ad-59b2-a673-7f087123839b",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "normal-seed2",
+        "scenario": "normal",
+        "seed": 2,
+        "run_id": "9ac1f932-82de-56a9-a632-542d7d1dd266",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "f3b94fa3-251b-42f8-a6f5-7534e81ba88a",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "9ac1f932-82de-56a9-a632-542d7d1dd266",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "6dfe5714-f64c-4983-b5d4-ab325fd61206",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "9ac1f932-82de-56a9-a632-542d7d1dd266",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "normal-seed3",
+        "scenario": "normal",
+        "seed": 3,
+        "run_id": "2871d40d-359b-5dde-9041-a2dde7312fdf",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "none",
+        "expected_rule_ids": [],
+        "expected_min_severity": "info",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "29ac5a53-b6c5-452c-955b-9444fad90770",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "2871d40d-359b-5dde-9041-a2dde7312fdf",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "ba9bc518-62ca-4322-b13a-9f9706175837",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "2871d40d-359b-5dde-9041-a2dde7312fdf",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "high_temperature-seed1",
+        "scenario": "high_temperature",
+        "seed": 1,
+        "run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "9e192c70-e1dd-4767-b0be-84a5082e2f0b",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "b1479f00-1b29-4d8f-b5e9-f274c6dfd8e1",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:07+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 173,
+            "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "2d4ad7c2-aa50-43cb-9743-4e12722722c1",
+            "rule_id": "COOLANT_TEMP_HIGH",
+            "severity": "critical",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 134,
+            "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+            "provisional_at_create": false
+          },
+          {
+            "alert_id": "638a6311-deb9-4944-bf10-1373f918caae",
+            "rule_id": "OIL_TEMP_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:01:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 74,
+            "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+            "provisional_at_create": false
+          }
+        ]
+      },
+      {
+        "episode_id": "high_temperature-seed2",
+        "scenario": "high_temperature",
+        "seed": 2,
+        "run_id": "edb713c3-72af-561b-b6ae-6ce8d2ed47d2",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "364605e5-dcab-409f-80eb-c0030cb796ad",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "edb713c3-72af-561b-b6ae-6ce8d2ed47d2",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "7e904fef-476f-4ec5-a65c-68ce185bfca9",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:07+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 173,
+            "simulation_run_id": "edb713c3-72af-561b-b6ae-6ce8d2ed47d2",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "94fb8a86-7613-4dae-872b-1c04e9e3883c",
+            "rule_id": "COOLANT_TEMP_HIGH",
+            "severity": "critical",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 134,
+            "simulation_run_id": "edb713c3-72af-561b-b6ae-6ce8d2ed47d2",
+            "provisional_at_create": false
+          },
+          {
+            "alert_id": "42c6405b-fd4f-4ca7-9bf9-74bc422797d9",
+            "rule_id": "OIL_TEMP_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:01:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 74,
+            "simulation_run_id": "edb713c3-72af-561b-b6ae-6ce8d2ed47d2",
+            "provisional_at_create": false
+          }
+        ]
+      },
+      {
+        "episode_id": "high_temperature-seed3",
+        "scenario": "high_temperature",
+        "seed": 3,
+        "run_id": "18ac665d-bfe5-50e8-99b9-81c20b899603",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "thermal",
+        "expected_rule_ids": [
+          "COOLANT_TEMP_HIGH",
+          "OIL_TEMP_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "d60001d3-7a78-4800-ab54-5b28015403a3",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "18ac665d-bfe5-50e8-99b9-81c20b899603",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "0583181e-5b4d-4dfe-914e-039cefb2c749",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:07+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 173,
+            "simulation_run_id": "18ac665d-bfe5-50e8-99b9-81c20b899603",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "0c1f8b5a-7069-4022-b41f-8812357d229f",
+            "rule_id": "COOLANT_TEMP_HIGH",
+            "severity": "critical",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 134,
+            "simulation_run_id": "18ac665d-bfe5-50e8-99b9-81c20b899603",
+            "provisional_at_create": false
+          },
+          {
+            "alert_id": "6364f0ce-5d94-4642-bf05-05eb9aaf5967",
+            "rule_id": "OIL_TEMP_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:01:46+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 74,
+            "simulation_run_id": "18ac665d-bfe5-50e8-99b9-81c20b899603",
+            "provisional_at_create": false
+          }
+        ]
+      },
+      {
+        "episode_id": "low_battery-seed1",
+        "scenario": "low_battery",
+        "seed": 1,
+        "run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "4a748b61-8005-40e7-993b-2a5238de07a4",
+            "rule_id": "BATTERY_VOLTAGE_LOW",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:01+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 179,
+            "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "ff081772-7556-4356-8380-ba30cbd6b2c5",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "800768e4-1e1b-43c2-b9a1-5aaa1886f71e",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "low_battery-seed2",
+        "scenario": "low_battery",
+        "seed": 2,
+        "run_id": "f614e299-f71f-5cfd-b928-d8e43d747b62",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "9e0cb3ab-fdc0-4f55-aa03-6798e4e96d77",
+            "rule_id": "BATTERY_VOLTAGE_LOW",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:01+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 179,
+            "simulation_run_id": "f614e299-f71f-5cfd-b928-d8e43d747b62",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "1ef441fa-3e00-4a5c-b7bb-262e9f1b1517",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "f614e299-f71f-5cfd-b928-d8e43d747b62",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "01b69e2b-7703-4386-8e09-0a0ee625d0aa",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "f614e299-f71f-5cfd-b928-d8e43d747b62",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "low_battery-seed3",
+        "scenario": "low_battery",
+        "seed": 3,
+        "run_id": "3f5c5c21-ba13-5cb3-9ae0-3639d19a036f",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "electrical",
+        "expected_rule_ids": [
+          "BATTERY_VOLTAGE_LOW"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "2170790f-2ebb-47a0-af57-7676a95ccb74",
+            "rule_id": "BATTERY_VOLTAGE_LOW",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:01+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 179,
+            "simulation_run_id": "3f5c5c21-ba13-5cb3-9ae0-3639d19a036f",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "9e68e800-93cc-4f67-b942-fa94832c5559",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "3f5c5c21-ba13-5cb3-9ae0-3639d19a036f",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "43980073-c8ed-4216-aa6b-b04cb4f42292",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "3f5c5c21-ba13-5cb3-9ae0-3639d19a036f",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "high_engine_load-seed1",
+        "scenario": "high_engine_load",
+        "seed": 1,
+        "run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "c204db87-ab16-4582-9648-def46dd11d84",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "d0f83d35-8759-46b1-b58a-dbd9fc3892b6",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "a0e92712-1af2-4463-a1e4-8dfcbc1cd66a",
+            "rule_id": "ENGINE_LOAD_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:22+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 158,
+            "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "high_engine_load-seed2",
+        "scenario": "high_engine_load",
+        "seed": 2,
+        "run_id": "051d3134-e2a2-502d-bb30-6a62e1abb045",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "219f0d3c-6508-413c-806d-9832b726d968",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "051d3134-e2a2-502d-bb30-6a62e1abb045",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "6672c6cd-c742-4682-8c3a-13ca6ef64d2f",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "051d3134-e2a2-502d-bb30-6a62e1abb045",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "7d783d39-acef-4bb6-8350-9426b2e491b5",
+            "rule_id": "ENGINE_LOAD_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:23+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 157,
+            "simulation_run_id": "051d3134-e2a2-502d-bb30-6a62e1abb045",
+            "provisional_at_create": true
+          }
+        ]
+      },
+      {
+        "episode_id": "high_engine_load-seed3",
+        "scenario": "high_engine_load",
+        "seed": 3,
+        "run_id": "7b314fd1-ebfb-5d86-a727-3f612c09723d",
+        "onset": "2026-01-01T00:00:00+00:00",
+        "end": "2026-01-01T00:02:59+00:00",
+        "duration_seconds": 180.0,
+        "reference_family": "engine_load",
+        "expected_rule_ids": [
+          "ENGINE_LOAD_HIGH"
+        ],
+        "expected_min_severity": "warning",
+        "monitor_passes": 180,
+        "failed_passes": 0,
+        "snapshots_persisted": 180,
+        "recovery_onset": null,
+        "alerts": [
+          {
+            "alert_id": "b1da8942-276a-4f44-9917-9ec3a5ffbbaa",
+            "rule_id": "RAPID_COOLANT_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:06+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 174,
+            "simulation_run_id": "7b314fd1-ebfb-5d86-a727-3f612c09723d",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "dcc0c759-f229-4eb1-b7e9-f3f3cc399874",
+            "rule_id": "RAPID_OIL_TEMP_RISE",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:08+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 172,
+            "simulation_run_id": "7b314fd1-ebfb-5d86-a727-3f612c09723d",
+            "provisional_at_create": true
+          },
+          {
+            "alert_id": "d06e45b8-d944-4039-959b-c5a131acabe7",
+            "rule_id": "ENGINE_LOAD_HIGH",
+            "severity": "warning",
+            "status": "open",
+            "first_seen_at": "2026-01-01T00:00:23+00:00",
+            "last_seen_at": "2026-01-01T00:02:59+00:00",
+            "resolved_at": null,
+            "occurrence_count": 157,
+            "simulation_run_id": "7b314fd1-ebfb-5d86-a727-3f612c09723d",
+            "provisional_at_create": true
+          }
+        ]
+      }
+    ],
+    "recovery": {
+      "summary": {
+        "episodes": 3,
+        "positive_episodes": 3,
+        "exposure_hours": 0.15,
+        "episodes_detected": 3,
+        "episodes_missed": 0,
+        "episode_recall": 1.0,
+        "episode_precision": 1.0,
+        "detected_episode_ids": [
+          "high_temperature-seed1",
+          "low_battery-seed1",
+          "high_engine_load-seed1"
+        ],
+        "missed_episode_ids": [],
+        "false_positive_episode_ids": [],
+        "alerts_total": 10,
+        "alerts_matching": 4,
+        "alerts_false_positive": 6,
+        "alert_precision": 0.4,
+        "expected_rule_pairs": 4,
+        "expected_rule_pairs_hit": 4,
+        "expected_rule_recall": 1.0,
+        "false_alarms_per_vehicle_hour": 40.0,
+        "duplicate_alert_rows": 0,
+        "duplicate_alert_rows_by_episode": {},
+        "recurrence_updates_total": 1892,
+        "time_to_first_detection_seconds": {
+          "count": 3,
+          "min": 1.0,
+          "p50": 22.0,
+          "p95": null,
+          "p95_justified": false,
+          "p99": null,
+          "p99_justified": false,
+          "max": 46.0,
+          "mean": 23.0
+        },
+        "time_to_first_detection_n": 3,
+        "time_to_resolution_seconds": {
+          "count": 4,
+          "min": 30.0,
+          "p50": 30.0,
+          "p95": null,
+          "p95_justified": false,
+          "p99": null,
+          "p99_justified": false,
+          "max": 30.0,
+          "mean": 30.0
+        },
+        "time_to_resolution_n": 4,
+        "unresolved_alerts": 6,
+        "resolved_alerts": 4,
+        "alerts_provisional_at_create": 8,
+        "alerts_definitive_at_create": 2,
+        "cold_start_false_positive_alerts": 0,
+        "by_reference_family": {
+          "thermal": {
+            "episodes": 1,
+            "detected": 1,
+            "alerts": 4,
+            "false_positive_alerts": 2
+          },
+          "electrical": {
+            "episodes": 1,
+            "detected": 1,
+            "alerts": 3,
+            "false_positive_alerts": 2
+          },
+          "engine_load": {
+            "episodes": 1,
+            "detected": 1,
+            "alerts": 3,
+            "false_positive_alerts": 2
+          }
+        },
+        "incomplete_episode_ids": [],
+        "per_episode": [
+          {
+            "episode_id": "high_temperature-seed1",
+            "scenario": "high_temperature",
+            "seed": 1,
+            "reference_family": "thermal",
+            "expected_rule_ids": [
+              "COOLANT_TEMP_HIGH",
+              "OIL_TEMP_HIGH"
+            ],
+            "detected": true,
+            "alerts": [
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE",
+              "COOLANT_TEMP_HIGH",
+              "OIL_TEMP_HIGH"
+            ],
+            "matching_alerts": [
+              "COOLANT_TEMP_HIGH",
+              "OIL_TEMP_HIGH"
+            ],
+            "false_positive_alerts": [
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE"
+            ],
+            "monitor_passes": 240,
+            "failed_passes": 0,
+            "snapshots_persisted": 240
+          },
+          {
+            "episode_id": "low_battery-seed1",
+            "scenario": "low_battery",
+            "seed": 1,
+            "reference_family": "electrical",
+            "expected_rule_ids": [
+              "BATTERY_VOLTAGE_LOW"
+            ],
+            "detected": true,
+            "alerts": [
+              "BATTERY_VOLTAGE_LOW",
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE"
+            ],
+            "matching_alerts": [
+              "BATTERY_VOLTAGE_LOW"
+            ],
+            "false_positive_alerts": [
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE"
+            ],
+            "monitor_passes": 240,
+            "failed_passes": 0,
+            "snapshots_persisted": 240
+          },
+          {
+            "episode_id": "high_engine_load-seed1",
+            "scenario": "high_engine_load",
+            "seed": 1,
+            "reference_family": "engine_load",
+            "expected_rule_ids": [
+              "ENGINE_LOAD_HIGH"
+            ],
+            "detected": true,
+            "alerts": [
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE",
+              "ENGINE_LOAD_HIGH"
+            ],
+            "matching_alerts": [
+              "ENGINE_LOAD_HIGH"
+            ],
+            "false_positive_alerts": [
+              "RAPID_COOLANT_RISE",
+              "RAPID_OIL_TEMP_RISE"
+            ],
+            "monitor_passes": 240,
+            "failed_passes": 0,
+            "snapshots_persisted": 240
+          }
+        ]
+      },
+      "cases": [
+        {
+          "scenario": "high_temperature",
+          "expected_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "resolved_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "ttr_seconds": 30.0
+        },
+        {
+          "scenario": "low_battery",
+          "expected_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "resolved_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "ttr_seconds": 30.0
+        },
+        {
+          "scenario": "high_engine_load",
+          "expected_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "resolved_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "ttr_seconds": 30.0
+        }
+      ],
+      "episodes": [
+        {
+          "episode_id": "high_temperature-seed1",
+          "scenario": "high_temperature",
+          "seed": 1,
+          "run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+          "onset": "2026-01-01T00:00:00+00:00",
+          "end": "2026-01-01T00:02:59+00:00",
+          "duration_seconds": 180.0,
+          "reference_family": "thermal",
+          "expected_rule_ids": [
+            "COOLANT_TEMP_HIGH",
+            "OIL_TEMP_HIGH"
+          ],
+          "expected_min_severity": "warning",
+          "monitor_passes": 240,
+          "failed_passes": 0,
+          "snapshots_persisted": 240,
+          "recovery_onset": "2026-01-02T00:00:00+00:00",
+          "alerts": [
+            {
+              "alert_id": "a4d8f264-4245-4241-a93b-94db8f6ecbea",
+              "rule_id": "RAPID_COOLANT_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:06+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 228,
+              "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "81743541-02a3-48c8-bedf-cf81faeab62f",
+              "rule_id": "RAPID_OIL_TEMP_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:07+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 225,
+              "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "066b5bbe-fab3-422e-8650-55fc0e35c15e",
+              "rule_id": "COOLANT_TEMP_HIGH",
+              "severity": "critical",
+              "status": "resolved",
+              "first_seen_at": "2026-01-01T00:00:46+00:00",
+              "last_seen_at": "2026-01-01T00:02:59+00:00",
+              "resolved_at": "2026-01-02T00:00:30+00:00",
+              "occurrence_count": 134,
+              "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+              "provisional_at_create": false
+            },
+            {
+              "alert_id": "8fa1bdfb-3bda-40ce-aabb-53548207408e",
+              "rule_id": "OIL_TEMP_HIGH",
+              "severity": "warning",
+              "status": "resolved",
+              "first_seen_at": "2026-01-01T00:01:46+00:00",
+              "last_seen_at": "2026-01-01T00:02:59+00:00",
+              "resolved_at": "2026-01-02T00:00:30+00:00",
+              "occurrence_count": 74,
+              "simulation_run_id": "ae56d3bf-2e4c-5441-99bb-9aed8dea4a8d",
+              "provisional_at_create": false
+            }
+          ]
+        },
+        {
+          "episode_id": "low_battery-seed1",
+          "scenario": "low_battery",
+          "seed": 1,
+          "run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+          "onset": "2026-01-01T00:00:00+00:00",
+          "end": "2026-01-01T00:02:59+00:00",
+          "duration_seconds": 180.0,
+          "reference_family": "electrical",
+          "expected_rule_ids": [
+            "BATTERY_VOLTAGE_LOW"
+          ],
+          "expected_min_severity": "warning",
+          "monitor_passes": 240,
+          "failed_passes": 0,
+          "snapshots_persisted": 240,
+          "recovery_onset": "2026-01-02T00:00:00+00:00",
+          "alerts": [
+            {
+              "alert_id": "6ae011e7-8b87-4f61-b64c-2072ff8c8e4c",
+              "rule_id": "BATTERY_VOLTAGE_LOW",
+              "severity": "warning",
+              "status": "resolved",
+              "first_seen_at": "2026-01-01T00:00:01+00:00",
+              "last_seen_at": "2026-01-01T00:02:59+00:00",
+              "resolved_at": "2026-01-02T00:00:30+00:00",
+              "occurrence_count": 179,
+              "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "57fd62a8-6e9d-4ec6-8ecb-3ff6d3473687",
+              "rule_id": "RAPID_COOLANT_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:06+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 228,
+              "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "c63f9f33-b8c3-46e9-91e3-6c40d5375d40",
+              "rule_id": "RAPID_OIL_TEMP_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:08+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 224,
+              "simulation_run_id": "d0451444-93df-5218-8718-0dc35dba83e0",
+              "provisional_at_create": true
+            }
+          ]
+        },
+        {
+          "episode_id": "high_engine_load-seed1",
+          "scenario": "high_engine_load",
+          "seed": 1,
+          "run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+          "onset": "2026-01-01T00:00:00+00:00",
+          "end": "2026-01-01T00:02:59+00:00",
+          "duration_seconds": 180.0,
+          "reference_family": "engine_load",
+          "expected_rule_ids": [
+            "ENGINE_LOAD_HIGH"
+          ],
+          "expected_min_severity": "warning",
+          "monitor_passes": 240,
+          "failed_passes": 0,
+          "snapshots_persisted": 240,
+          "recovery_onset": "2026-01-02T00:00:00+00:00",
+          "alerts": [
+            {
+              "alert_id": "07120da8-7ce7-4aa6-b3fd-3a5ed843e206",
+              "rule_id": "RAPID_COOLANT_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:06+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 228,
+              "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "b345aa82-de25-4887-b2eb-2a050f85e527",
+              "rule_id": "RAPID_OIL_TEMP_RISE",
+              "severity": "warning",
+              "status": "open",
+              "first_seen_at": "2026-01-01T00:00:08+00:00",
+              "last_seen_at": "2026-01-02T00:00:59+00:00",
+              "resolved_at": null,
+              "occurrence_count": 224,
+              "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+              "provisional_at_create": true
+            },
+            {
+              "alert_id": "4aceb0d5-3541-4d38-9b9a-b27dbfd0cd07",
+              "rule_id": "ENGINE_LOAD_HIGH",
+              "severity": "warning",
+              "status": "resolved",
+              "first_seen_at": "2026-01-01T00:00:22+00:00",
+              "last_seen_at": "2026-01-01T00:02:59+00:00",
+              "resolved_at": "2026-01-02T00:00:30+00:00",
+              "occurrence_count": 158,
+              "simulation_run_id": "da4c31f5-e650-5cb4-b048-5a0955e75d2e",
+              "provisional_at_create": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "latency": {
+    "provenance": "MEASURED (real MQTT -> subscriber -> DB -> analyzer -> alert)",
+    "config": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "scenario": "high_temperature",
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "samples": 60,
+      "interval_seconds": 1.0
+    },
+    "n_samples": 180,
+    "n_alerts": 9,
+    "ingest_ms": {
+      "count": 180,
+      "min": 2.482,
+      "p50": 3.886,
+      "p95": 6.763,
+      "p95_justified": true,
+      "p99": 7.765,
+      "p99_justified": true,
+      "max": 8.267,
+      "mean": 4.364
+    },
+    "monitor_pass_ms": {
+      "count": 180,
+      "min": 7.403,
+      "p50": 16.063,
+      "p95": 22.928,
+      "p95_justified": true,
+      "p99": 26.787,
+      "p99_justified": true,
+      "max": 32.9,
+      "mean": 16.491
+    },
+    "engine_analysis_duration_ms": {
+      "count": 180,
+      "min": 0.349,
+      "p50": 1.201,
+      "p95": 2.016,
+      "p95_justified": true,
+      "p99": 2.653,
+      "p99_justified": true,
+      "max": 3.137,
+      "mean": 1.245
+    },
+    "publish_to_alert_ms": {
+      "count": 9,
+      "min": 17.906,
+      "p50": 21.837,
+      "p95": null,
+      "p95_justified": false,
+      "p99": null,
+      "p99_justified": false,
+      "max": 54.309,
+      "mean": 29.925
+    },
+    "samples": [
+      {
+        "seed": 1,
+        "index": 0,
+        "event_id": "ae56d3bf2e4c544199-00000",
+        "ingest_ms": 3.196,
+        "monitor_pass_ms": 9.417799999937415,
+        "engine_analysis_duration_ms": 0.394,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 1,
+        "event_id": "ae56d3bf2e4c544199-00001",
+        "ingest_ms": 6.059,
+        "monitor_pass_ms": 7.4028999952133745,
+        "engine_analysis_duration_ms": 0.419,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 2,
+        "event_id": "ae56d3bf2e4c544199-00002",
+        "ingest_ms": 3.2750000000000004,
+        "monitor_pass_ms": 9.343799989437684,
+        "engine_analysis_duration_ms": 0.56,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 3,
+        "event_id": "ae56d3bf2e4c544199-00003",
+        "ingest_ms": 2.722,
+        "monitor_pass_ms": 14.944700000341982,
+        "engine_analysis_duration_ms": 0.592,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 4,
+        "event_id": "ae56d3bf2e4c544199-00004",
+        "ingest_ms": 6.407,
+        "monitor_pass_ms": 12.378199986414984,
+        "engine_analysis_duration_ms": 0.718,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 5,
+        "event_id": "ae56d3bf2e4c544199-00005",
+        "ingest_ms": 2.734,
+        "monitor_pass_ms": 8.187200000975281,
+        "engine_analysis_duration_ms": 0.621,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 6,
+        "event_id": "ae56d3bf2e4c544199-00006",
+        "ingest_ms": 6.365,
+        "monitor_pass_ms": 15.839200001209974,
+        "engine_analysis_duration_ms": 0.68,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 7,
+        "event_id": "ae56d3bf2e4c544199-00007",
+        "ingest_ms": 2.947,
+        "monitor_pass_ms": 12.312400009250268,
+        "engine_analysis_duration_ms": 0.678,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 8,
+        "event_id": "ae56d3bf2e4c544199-00008",
+        "ingest_ms": 3.229,
+        "monitor_pass_ms": 11.941000004298985,
+        "engine_analysis_duration_ms": 0.851,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 9,
+        "event_id": "ae56d3bf2e4c544199-00009",
+        "ingest_ms": 6.896,
+        "monitor_pass_ms": 11.828599992441013,
+        "engine_analysis_duration_ms": 0.727,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 10,
+        "event_id": "ae56d3bf2e4c544199-00010",
+        "ingest_ms": 6.123,
+        "monitor_pass_ms": 17.55540000158362,
+        "engine_analysis_duration_ms": 0.761,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 11,
+        "event_id": "ae56d3bf2e4c544199-00011",
+        "ingest_ms": 8.267,
+        "monitor_pass_ms": 19.006999995326623,
+        "engine_analysis_duration_ms": 1.128,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 12,
+        "event_id": "ae56d3bf2e4c544199-00012",
+        "ingest_ms": 4.61,
+        "monitor_pass_ms": 12.861199997132644,
+        "engine_analysis_duration_ms": 0.769,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 13,
+        "event_id": "ae56d3bf2e4c544199-00013",
+        "ingest_ms": 3.321,
+        "monitor_pass_ms": 15.454000007594004,
+        "engine_analysis_duration_ms": 0.792,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 14,
+        "event_id": "ae56d3bf2e4c544199-00014",
+        "ingest_ms": 5.566,
+        "monitor_pass_ms": 15.235600003506988,
+        "engine_analysis_duration_ms": 1.508,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 15,
+        "event_id": "ae56d3bf2e4c544199-00015",
+        "ingest_ms": 6.884,
+        "monitor_pass_ms": 13.642400008393452,
+        "engine_analysis_duration_ms": 1.034,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 16,
+        "event_id": "ae56d3bf2e4c544199-00016",
+        "ingest_ms": 2.9299999999999997,
+        "monitor_pass_ms": 15.54360002046451,
+        "engine_analysis_duration_ms": 1.769,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 17,
+        "event_id": "ae56d3bf2e4c544199-00017",
+        "ingest_ms": 3.1679999999999997,
+        "monitor_pass_ms": 16.333700012182817,
+        "engine_analysis_duration_ms": 0.899,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 18,
+        "event_id": "ae56d3bf2e4c544199-00018",
+        "ingest_ms": 4.5009999999999994,
+        "monitor_pass_ms": 14.707700000144541,
+        "engine_analysis_duration_ms": 0.925,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 19,
+        "event_id": "ae56d3bf2e4c544199-00019",
+        "ingest_ms": 2.8,
+        "monitor_pass_ms": 14.454099989961833,
+        "engine_analysis_duration_ms": 0.916,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 20,
+        "event_id": "ae56d3bf2e4c544199-00020",
+        "ingest_ms": 5.372,
+        "monitor_pass_ms": 16.45180000923574,
+        "engine_analysis_duration_ms": 0.936,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 21,
+        "event_id": "ae56d3bf2e4c544199-00021",
+        "ingest_ms": 5.263,
+        "monitor_pass_ms": 16.062899987446144,
+        "engine_analysis_duration_ms": 1.094,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 22,
+        "event_id": "ae56d3bf2e4c544199-00022",
+        "ingest_ms": 7.917000000000001,
+        "monitor_pass_ms": 17.000199994072318,
+        "engine_analysis_duration_ms": 0.961,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 23,
+        "event_id": "ae56d3bf2e4c544199-00023",
+        "ingest_ms": 2.665,
+        "monitor_pass_ms": 14.693899982376024,
+        "engine_analysis_duration_ms": 0.986,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 24,
+        "event_id": "ae56d3bf2e4c544199-00024",
+        "ingest_ms": 6.131,
+        "monitor_pass_ms": 16.954299993813038,
+        "engine_analysis_duration_ms": 1.298,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 25,
+        "event_id": "ae56d3bf2e4c544199-00025",
+        "ingest_ms": 7.0520000000000005,
+        "monitor_pass_ms": 15.439400012837723,
+        "engine_analysis_duration_ms": 1.084,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 26,
+        "event_id": "ae56d3bf2e4c544199-00026",
+        "ingest_ms": 3.523,
+        "monitor_pass_ms": 17.619899997953326,
+        "engine_analysis_duration_ms": 1.145,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 27,
+        "event_id": "ae56d3bf2e4c544199-00027",
+        "ingest_ms": 2.821,
+        "monitor_pass_ms": 20.804100000532344,
+        "engine_analysis_duration_ms": 1.072,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 28,
+        "event_id": "ae56d3bf2e4c544199-00028",
+        "ingest_ms": 2.812,
+        "monitor_pass_ms": 18.19539998541586,
+        "engine_analysis_duration_ms": 2.398,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 29,
+        "event_id": "ae56d3bf2e4c544199-00029",
+        "ingest_ms": 3.748,
+        "monitor_pass_ms": 16.02670000283979,
+        "engine_analysis_duration_ms": 1.117,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 1,
+        "index": 30,
+        "event_id": "ae56d3bf2e4c544199-00030",
+        "ingest_ms": 5.231000000000001,
+        "monitor_pass_ms": 15.865299996221438,
+        "engine_analysis_duration_ms": 1.122,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 31,
+        "event_id": "ae56d3bf2e4c544199-00031",
+        "ingest_ms": 5.936999999999999,
+        "monitor_pass_ms": 16.054300009272993,
+        "engine_analysis_duration_ms": 1.366,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 32,
+        "event_id": "ae56d3bf2e4c544199-00032",
+        "ingest_ms": 3.227,
+        "monitor_pass_ms": 18.095499981427565,
+        "engine_analysis_duration_ms": 1.395,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 33,
+        "event_id": "ae56d3bf2e4c544199-00033",
+        "ingest_ms": 2.855,
+        "monitor_pass_ms": 15.519999986281618,
+        "engine_analysis_duration_ms": 1.266,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 34,
+        "event_id": "ae56d3bf2e4c544199-00034",
+        "ingest_ms": 3.79,
+        "monitor_pass_ms": 22.76650001294911,
+        "engine_analysis_duration_ms": 1.175,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 35,
+        "event_id": "ae56d3bf2e4c544199-00035",
+        "ingest_ms": 2.8240000000000003,
+        "monitor_pass_ms": 15.241499990224838,
+        "engine_analysis_duration_ms": 1.318,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 36,
+        "event_id": "ae56d3bf2e4c544199-00036",
+        "ingest_ms": 2.848,
+        "monitor_pass_ms": 14.51670000096783,
+        "engine_analysis_duration_ms": 1.247,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 37,
+        "event_id": "ae56d3bf2e4c544199-00037",
+        "ingest_ms": 2.749,
+        "monitor_pass_ms": 15.594999975292012,
+        "engine_analysis_duration_ms": 1.223,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 38,
+        "event_id": "ae56d3bf2e4c544199-00038",
+        "ingest_ms": 2.685,
+        "monitor_pass_ms": 13.73439998133108,
+        "engine_analysis_duration_ms": 1.277,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 39,
+        "event_id": "ae56d3bf2e4c544199-00039",
+        "ingest_ms": 3.0,
+        "monitor_pass_ms": 15.523999987635761,
+        "engine_analysis_duration_ms": 1.274,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 40,
+        "event_id": "ae56d3bf2e4c544199-00040",
+        "ingest_ms": 2.6830000000000003,
+        "monitor_pass_ms": 12.977000005776063,
+        "engine_analysis_duration_ms": 1.291,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 41,
+        "event_id": "ae56d3bf2e4c544199-00041",
+        "ingest_ms": 4.071,
+        "monitor_pass_ms": 14.143600012175739,
+        "engine_analysis_duration_ms": 1.341,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 42,
+        "event_id": "ae56d3bf2e4c544199-00042",
+        "ingest_ms": 6.708,
+        "monitor_pass_ms": 32.90029999334365,
+        "engine_analysis_duration_ms": 1.989,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 43,
+        "event_id": "ae56d3bf2e4c544199-00043",
+        "ingest_ms": 5.159999999999999,
+        "monitor_pass_ms": 20.273700007237494,
+        "engine_analysis_duration_ms": 1.733,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 44,
+        "event_id": "ae56d3bf2e4c544199-00044",
+        "ingest_ms": 5.744,
+        "monitor_pass_ms": 16.249299980700016,
+        "engine_analysis_duration_ms": 1.608,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 45,
+        "event_id": "ae56d3bf2e4c544199-00045",
+        "ingest_ms": 6.176,
+        "monitor_pass_ms": 16.243799997027963,
+        "engine_analysis_duration_ms": 1.6,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 46,
+        "event_id": "ae56d3bf2e4c544199-00046",
+        "ingest_ms": 2.709,
+        "monitor_pass_ms": 19.23279999755323,
+        "engine_analysis_duration_ms": 1.48,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 47,
+        "event_id": "ae56d3bf2e4c544199-00047",
+        "ingest_ms": 3.362,
+        "monitor_pass_ms": 15.455099986866117,
+        "engine_analysis_duration_ms": 1.419,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 48,
+        "event_id": "ae56d3bf2e4c544199-00048",
+        "ingest_ms": 5.662999999999999,
+        "monitor_pass_ms": 22.007200022926554,
+        "engine_analysis_duration_ms": 1.716,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 49,
+        "event_id": "ae56d3bf2e4c544199-00049",
+        "ingest_ms": 5.955,
+        "monitor_pass_ms": 25.607199990190566,
+        "engine_analysis_duration_ms": 3.018,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 50,
+        "event_id": "ae56d3bf2e4c544199-00050",
+        "ingest_ms": 5.24,
+        "monitor_pass_ms": 16.92009999533184,
+        "engine_analysis_duration_ms": 1.465,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 51,
+        "event_id": "ae56d3bf2e4c544199-00051",
+        "ingest_ms": 4.478000000000001,
+        "monitor_pass_ms": 20.291699998779222,
+        "engine_analysis_duration_ms": 2.186,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 52,
+        "event_id": "ae56d3bf2e4c544199-00052",
+        "ingest_ms": 5.289000000000001,
+        "monitor_pass_ms": 28.148199984570965,
+        "engine_analysis_duration_ms": 3.137,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 53,
+        "event_id": "ae56d3bf2e4c544199-00053",
+        "ingest_ms": 5.982,
+        "monitor_pass_ms": 20.507500012172386,
+        "engine_analysis_duration_ms": 1.966,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 54,
+        "event_id": "ae56d3bf2e4c544199-00054",
+        "ingest_ms": 3.319,
+        "monitor_pass_ms": 14.966799993999302,
+        "engine_analysis_duration_ms": 1.541,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 55,
+        "event_id": "ae56d3bf2e4c544199-00055",
+        "ingest_ms": 2.979,
+        "monitor_pass_ms": 21.9457000202965,
+        "engine_analysis_duration_ms": 1.883,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 56,
+        "event_id": "ae56d3bf2e4c544199-00056",
+        "ingest_ms": 3.404,
+        "monitor_pass_ms": 16.526399995200336,
+        "engine_analysis_duration_ms": 1.638,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 57,
+        "event_id": "ae56d3bf2e4c544199-00057",
+        "ingest_ms": 7.233,
+        "monitor_pass_ms": 16.551599983358756,
+        "engine_analysis_duration_ms": 1.605,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 58,
+        "event_id": "ae56d3bf2e4c544199-00058",
+        "ingest_ms": 5.407,
+        "monitor_pass_ms": 24.817699973937124,
+        "engine_analysis_duration_ms": 2.299,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 1,
+        "index": 59,
+        "event_id": "ae56d3bf2e4c544199-00059",
+        "ingest_ms": 4.505,
+        "monitor_pass_ms": 16.926699987379834,
+        "engine_analysis_duration_ms": 1.641,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 0,
+        "event_id": "edb713c372af561bb6-00000",
+        "ingest_ms": 3.232,
+        "monitor_pass_ms": 10.456800024257973,
+        "engine_analysis_duration_ms": 0.373,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 1,
+        "event_id": "edb713c372af561bb6-00001",
+        "ingest_ms": 2.641,
+        "monitor_pass_ms": 8.913500001654029,
+        "engine_analysis_duration_ms": 0.418,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 2,
+        "event_id": "edb713c372af561bb6-00002",
+        "ingest_ms": 3.3249999999999997,
+        "monitor_pass_ms": 10.756100004073232,
+        "engine_analysis_duration_ms": 0.694,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 3,
+        "event_id": "edb713c372af561bb6-00003",
+        "ingest_ms": 4.524,
+        "monitor_pass_ms": 9.905000013532117,
+        "engine_analysis_duration_ms": 0.659,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 4,
+        "event_id": "edb713c372af561bb6-00004",
+        "ingest_ms": 3.0149999999999997,
+        "monitor_pass_ms": 9.504099987680092,
+        "engine_analysis_duration_ms": 0.6,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 5,
+        "event_id": "edb713c372af561bb6-00005",
+        "ingest_ms": 2.625,
+        "monitor_pass_ms": 10.73579999501817,
+        "engine_analysis_duration_ms": 0.633,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 6,
+        "event_id": "edb713c372af561bb6-00006",
+        "ingest_ms": 2.841,
+        "monitor_pass_ms": 17.116100003477186,
+        "engine_analysis_duration_ms": 0.848,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 7,
+        "event_id": "edb713c372af561bb6-00007",
+        "ingest_ms": 6.0809999999999995,
+        "monitor_pass_ms": 20.25359999970533,
+        "engine_analysis_duration_ms": 0.803,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 8,
+        "event_id": "edb713c372af561bb6-00008",
+        "ingest_ms": 2.7520000000000002,
+        "monitor_pass_ms": 14.33159998850897,
+        "engine_analysis_duration_ms": 0.7,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 9,
+        "event_id": "edb713c372af561bb6-00009",
+        "ingest_ms": 4.471,
+        "monitor_pass_ms": 13.255500001832843,
+        "engine_analysis_duration_ms": 0.852,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 10,
+        "event_id": "edb713c372af561bb6-00010",
+        "ingest_ms": 3.4,
+        "monitor_pass_ms": 11.771899997256696,
+        "engine_analysis_duration_ms": 0.738,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 11,
+        "event_id": "edb713c372af561bb6-00011",
+        "ingest_ms": 5.692,
+        "monitor_pass_ms": 21.70260000275448,
+        "engine_analysis_duration_ms": 0.82,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 12,
+        "event_id": "edb713c372af561bb6-00012",
+        "ingest_ms": 3.136,
+        "monitor_pass_ms": 16.460100014228374,
+        "engine_analysis_duration_ms": 0.771,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 13,
+        "event_id": "edb713c372af561bb6-00013",
+        "ingest_ms": 3.337,
+        "monitor_pass_ms": 15.505199990002438,
+        "engine_analysis_duration_ms": 0.799,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 14,
+        "event_id": "edb713c372af561bb6-00014",
+        "ingest_ms": 2.564,
+        "monitor_pass_ms": 16.760800004703924,
+        "engine_analysis_duration_ms": 0.842,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 15,
+        "event_id": "edb713c372af561bb6-00015",
+        "ingest_ms": 6.021999999999999,
+        "monitor_pass_ms": 13.702600001124665,
+        "engine_analysis_duration_ms": 0.944,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 16,
+        "event_id": "edb713c372af561bb6-00016",
+        "ingest_ms": 2.9,
+        "monitor_pass_ms": 13.655799994012341,
+        "engine_analysis_duration_ms": 0.855,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 17,
+        "event_id": "edb713c372af561bb6-00017",
+        "ingest_ms": 6.477,
+        "monitor_pass_ms": 12.397200014675036,
+        "engine_analysis_duration_ms": 0.883,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 18,
+        "event_id": "edb713c372af561bb6-00018",
+        "ingest_ms": 5.757,
+        "monitor_pass_ms": 16.561999975237995,
+        "engine_analysis_duration_ms": 0.911,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 19,
+        "event_id": "edb713c372af561bb6-00019",
+        "ingest_ms": 3.12,
+        "monitor_pass_ms": 14.92570000118576,
+        "engine_analysis_duration_ms": 0.923,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 20,
+        "event_id": "edb713c372af561bb6-00020",
+        "ingest_ms": 6.590999999999999,
+        "monitor_pass_ms": 16.463099978864193,
+        "engine_analysis_duration_ms": 1.03,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 21,
+        "event_id": "edb713c372af561bb6-00021",
+        "ingest_ms": 2.5869999999999997,
+        "monitor_pass_ms": 13.114300003508106,
+        "engine_analysis_duration_ms": 1.108,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 22,
+        "event_id": "edb713c372af561bb6-00022",
+        "ingest_ms": 4.275,
+        "monitor_pass_ms": 15.669199987314641,
+        "engine_analysis_duration_ms": 0.985,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 23,
+        "event_id": "edb713c372af561bb6-00023",
+        "ingest_ms": 3.013,
+        "monitor_pass_ms": 14.266200014390051,
+        "engine_analysis_duration_ms": 0.999,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 24,
+        "event_id": "edb713c372af561bb6-00024",
+        "ingest_ms": 6.035,
+        "monitor_pass_ms": 15.536499995505437,
+        "engine_analysis_duration_ms": 1.037,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 25,
+        "event_id": "edb713c372af561bb6-00025",
+        "ingest_ms": 5.7330000000000005,
+        "monitor_pass_ms": 16.404800000600517,
+        "engine_analysis_duration_ms": 1.183,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 26,
+        "event_id": "edb713c372af561bb6-00026",
+        "ingest_ms": 6.191000000000001,
+        "monitor_pass_ms": 17.452500003855675,
+        "engine_analysis_duration_ms": 1.106,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 27,
+        "event_id": "edb713c372af561bb6-00027",
+        "ingest_ms": 7.274,
+        "monitor_pass_ms": 14.420199993764982,
+        "engine_analysis_duration_ms": 1.09,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 28,
+        "event_id": "edb713c372af561bb6-00028",
+        "ingest_ms": 3.414,
+        "monitor_pass_ms": 17.8936000156682,
+        "engine_analysis_duration_ms": 1.159,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 29,
+        "event_id": "edb713c372af561bb6-00029",
+        "ingest_ms": 3.4979999999999998,
+        "monitor_pass_ms": 16.086199990240857,
+        "engine_analysis_duration_ms": 1.197,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 2,
+        "index": 30,
+        "event_id": "edb713c372af561bb6-00030",
+        "ingest_ms": 2.906,
+        "monitor_pass_ms": 18.80759999039583,
+        "engine_analysis_duration_ms": 1.258,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 31,
+        "event_id": "edb713c372af561bb6-00031",
+        "ingest_ms": 7.437,
+        "monitor_pass_ms": 15.325899992603809,
+        "engine_analysis_duration_ms": 1.614,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 32,
+        "event_id": "edb713c372af561bb6-00032",
+        "ingest_ms": 2.661,
+        "monitor_pass_ms": 13.843399996403605,
+        "engine_analysis_duration_ms": 1.152,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 33,
+        "event_id": "edb713c372af561bb6-00033",
+        "ingest_ms": 7.765000000000001,
+        "monitor_pass_ms": 13.990199979161844,
+        "engine_analysis_duration_ms": 1.151,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 34,
+        "event_id": "edb713c372af561bb6-00034",
+        "ingest_ms": 2.904,
+        "monitor_pass_ms": 22.081200004322454,
+        "engine_analysis_duration_ms": 1.321,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 35,
+        "event_id": "edb713c372af561bb6-00035",
+        "ingest_ms": 3.794,
+        "monitor_pass_ms": 15.990800020517781,
+        "engine_analysis_duration_ms": 1.187,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 36,
+        "event_id": "edb713c372af561bb6-00036",
+        "ingest_ms": 3.007,
+        "monitor_pass_ms": 14.70500000868924,
+        "engine_analysis_duration_ms": 1.247,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 37,
+        "event_id": "edb713c372af561bb6-00037",
+        "ingest_ms": 3.363,
+        "monitor_pass_ms": 18.82830000249669,
+        "engine_analysis_duration_ms": 1.506,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 38,
+        "event_id": "edb713c372af561bb6-00038",
+        "ingest_ms": 4.226999999999999,
+        "monitor_pass_ms": 14.379600004758686,
+        "engine_analysis_duration_ms": 1.263,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 39,
+        "event_id": "edb713c372af561bb6-00039",
+        "ingest_ms": 3.418,
+        "monitor_pass_ms": 17.698699986794963,
+        "engine_analysis_duration_ms": 1.268,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 40,
+        "event_id": "edb713c372af561bb6-00040",
+        "ingest_ms": 6.31,
+        "monitor_pass_ms": 17.992100008996204,
+        "engine_analysis_duration_ms": 1.325,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 41,
+        "event_id": "edb713c372af561bb6-00041",
+        "ingest_ms": 2.886,
+        "monitor_pass_ms": 14.465399988694116,
+        "engine_analysis_duration_ms": 1.304,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 42,
+        "event_id": "edb713c372af561bb6-00042",
+        "ingest_ms": 3.343,
+        "monitor_pass_ms": 16.8753000034485,
+        "engine_analysis_duration_ms": 1.39,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 43,
+        "event_id": "edb713c372af561bb6-00043",
+        "ingest_ms": 2.918,
+        "monitor_pass_ms": 15.160000009927899,
+        "engine_analysis_duration_ms": 1.326,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 44,
+        "event_id": "edb713c372af561bb6-00044",
+        "ingest_ms": 5.789,
+        "monitor_pass_ms": 14.373399986652657,
+        "engine_analysis_duration_ms": 1.523,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 45,
+        "event_id": "edb713c372af561bb6-00045",
+        "ingest_ms": 5.579,
+        "monitor_pass_ms": 23.204500001156703,
+        "engine_analysis_duration_ms": 2.368,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 46,
+        "event_id": "edb713c372af561bb6-00046",
+        "ingest_ms": 5.769,
+        "monitor_pass_ms": 23.47580000059679,
+        "engine_analysis_duration_ms": 1.59,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 47,
+        "event_id": "edb713c372af561bb6-00047",
+        "ingest_ms": 4.424,
+        "monitor_pass_ms": 16.17190000251867,
+        "engine_analysis_duration_ms": 1.428,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 48,
+        "event_id": "edb713c372af561bb6-00048",
+        "ingest_ms": 6.407,
+        "monitor_pass_ms": 26.020799996331334,
+        "engine_analysis_duration_ms": 2.016,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 49,
+        "event_id": "edb713c372af561bb6-00049",
+        "ingest_ms": 6.444,
+        "monitor_pass_ms": 19.90099999238737,
+        "engine_analysis_duration_ms": 1.668,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 50,
+        "event_id": "edb713c372af561bb6-00050",
+        "ingest_ms": 3.58,
+        "monitor_pass_ms": 17.187199991894886,
+        "engine_analysis_duration_ms": 1.459,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 51,
+        "event_id": "edb713c372af561bb6-00051",
+        "ingest_ms": 5.41,
+        "monitor_pass_ms": 18.76160001847893,
+        "engine_analysis_duration_ms": 1.48,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 52,
+        "event_id": "edb713c372af561bb6-00052",
+        "ingest_ms": 4.2139999999999995,
+        "monitor_pass_ms": 20.249799999874085,
+        "engine_analysis_duration_ms": 2.102,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 53,
+        "event_id": "edb713c372af561bb6-00053",
+        "ingest_ms": 6.666,
+        "monitor_pass_ms": 19.3571999843698,
+        "engine_analysis_duration_ms": 1.798,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 54,
+        "event_id": "edb713c372af561bb6-00054",
+        "ingest_ms": 4.521,
+        "monitor_pass_ms": 18.916199973318726,
+        "engine_analysis_duration_ms": 1.62,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 55,
+        "event_id": "edb713c372af561bb6-00055",
+        "ingest_ms": 3.512,
+        "monitor_pass_ms": 18.309999984921888,
+        "engine_analysis_duration_ms": 1.702,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 56,
+        "event_id": "edb713c372af561bb6-00056",
+        "ingest_ms": 2.968,
+        "monitor_pass_ms": 18.159200000809506,
+        "engine_analysis_duration_ms": 1.585,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 57,
+        "event_id": "edb713c372af561bb6-00057",
+        "ingest_ms": 5.123,
+        "monitor_pass_ms": 20.88200001162477,
+        "engine_analysis_duration_ms": 1.591,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 58,
+        "event_id": "edb713c372af561bb6-00058",
+        "ingest_ms": 4.486000000000001,
+        "monitor_pass_ms": 17.442600015783682,
+        "engine_analysis_duration_ms": 1.629,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 2,
+        "index": 59,
+        "event_id": "edb713c372af561bb6-00059",
+        "ingest_ms": 3.549,
+        "monitor_pass_ms": 18.61950001330115,
+        "engine_analysis_duration_ms": 1.633,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 0,
+        "event_id": "18ac665dbfe550e899-00000",
+        "ingest_ms": 2.815,
+        "monitor_pass_ms": 12.71650000126101,
+        "engine_analysis_duration_ms": 0.349,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 1,
+        "event_id": "18ac665dbfe550e899-00001",
+        "ingest_ms": 2.979,
+        "monitor_pass_ms": 8.774999994784594,
+        "engine_analysis_duration_ms": 0.635,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 2,
+        "event_id": "18ac665dbfe550e899-00002",
+        "ingest_ms": 2.613,
+        "monitor_pass_ms": 9.4171000237111,
+        "engine_analysis_duration_ms": 0.56,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 3,
+        "event_id": "18ac665dbfe550e899-00003",
+        "ingest_ms": 6.07,
+        "monitor_pass_ms": 8.498799987137318,
+        "engine_analysis_duration_ms": 0.577,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 4,
+        "event_id": "18ac665dbfe550e899-00004",
+        "ingest_ms": 6.173,
+        "monitor_pass_ms": 10.00979999662377,
+        "engine_analysis_duration_ms": 0.685,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 5,
+        "event_id": "18ac665dbfe550e899-00005",
+        "ingest_ms": 3.5170000000000003,
+        "monitor_pass_ms": 13.381600001594052,
+        "engine_analysis_duration_ms": 1.118,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 6,
+        "event_id": "18ac665dbfe550e899-00006",
+        "ingest_ms": 6.034000000000001,
+        "monitor_pass_ms": 15.575700002955273,
+        "engine_analysis_duration_ms": 0.787,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 7,
+        "event_id": "18ac665dbfe550e899-00007",
+        "ingest_ms": 6.272,
+        "monitor_pass_ms": 26.483199995709583,
+        "engine_analysis_duration_ms": 1.5,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 8,
+        "event_id": "18ac665dbfe550e899-00008",
+        "ingest_ms": 6.138,
+        "monitor_pass_ms": 12.449500005459413,
+        "engine_analysis_duration_ms": 0.705,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 9,
+        "event_id": "18ac665dbfe550e899-00009",
+        "ingest_ms": 3.904,
+        "monitor_pass_ms": 16.423100023530424,
+        "engine_analysis_duration_ms": 0.747,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 10,
+        "event_id": "18ac665dbfe550e899-00010",
+        "ingest_ms": 4.513,
+        "monitor_pass_ms": 15.055399999255314,
+        "engine_analysis_duration_ms": 0.723,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 11,
+        "event_id": "18ac665dbfe550e899-00011",
+        "ingest_ms": 6.477,
+        "monitor_pass_ms": 26.78729998297058,
+        "engine_analysis_duration_ms": 1.624,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 12,
+        "event_id": "18ac665dbfe550e899-00012",
+        "ingest_ms": 3.879,
+        "monitor_pass_ms": 15.471599996089935,
+        "engine_analysis_duration_ms": 0.838,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 13,
+        "event_id": "18ac665dbfe550e899-00013",
+        "ingest_ms": 4.832000000000001,
+        "monitor_pass_ms": 13.63240001956001,
+        "engine_analysis_duration_ms": 0.832,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 14,
+        "event_id": "18ac665dbfe550e899-00014",
+        "ingest_ms": 4.827999999999999,
+        "monitor_pass_ms": 14.341200003400445,
+        "engine_analysis_duration_ms": 0.836,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 15,
+        "event_id": "18ac665dbfe550e899-00015",
+        "ingest_ms": 3.561,
+        "monitor_pass_ms": 22.101600014138967,
+        "engine_analysis_duration_ms": 1.083,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 16,
+        "event_id": "18ac665dbfe550e899-00016",
+        "ingest_ms": 6.0600000000000005,
+        "monitor_pass_ms": 12.747000000672415,
+        "engine_analysis_duration_ms": 0.974,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 17,
+        "event_id": "18ac665dbfe550e899-00017",
+        "ingest_ms": 6.1209999999999996,
+        "monitor_pass_ms": 15.998099988792092,
+        "engine_analysis_duration_ms": 1.105,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 18,
+        "event_id": "18ac665dbfe550e899-00018",
+        "ingest_ms": 3.5100000000000002,
+        "monitor_pass_ms": 16.5804999996908,
+        "engine_analysis_duration_ms": 0.931,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 19,
+        "event_id": "18ac665dbfe550e899-00019",
+        "ingest_ms": 4.575,
+        "monitor_pass_ms": 14.244299993151799,
+        "engine_analysis_duration_ms": 0.954,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 20,
+        "event_id": "18ac665dbfe550e899-00020",
+        "ingest_ms": 3.886,
+        "monitor_pass_ms": 14.539499999955297,
+        "engine_analysis_duration_ms": 0.954,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 21,
+        "event_id": "18ac665dbfe550e899-00021",
+        "ingest_ms": 3.474,
+        "monitor_pass_ms": 15.100999997230247,
+        "engine_analysis_duration_ms": 0.95,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 22,
+        "event_id": "18ac665dbfe550e899-00022",
+        "ingest_ms": 2.924,
+        "monitor_pass_ms": 12.199299992062151,
+        "engine_analysis_duration_ms": 0.989,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 23,
+        "event_id": "18ac665dbfe550e899-00023",
+        "ingest_ms": 5.878,
+        "monitor_pass_ms": 19.88599999458529,
+        "engine_analysis_duration_ms": 1.391,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 24,
+        "event_id": "18ac665dbfe550e899-00024",
+        "ingest_ms": 4.401999999999999,
+        "monitor_pass_ms": 21.232200000667945,
+        "engine_analysis_duration_ms": 1.337,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 25,
+        "event_id": "18ac665dbfe550e899-00025",
+        "ingest_ms": 6.528,
+        "monitor_pass_ms": 16.46369998343289,
+        "engine_analysis_duration_ms": 1.293,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 26,
+        "event_id": "18ac665dbfe550e899-00026",
+        "ingest_ms": 3.962,
+        "monitor_pass_ms": 16.564699995797127,
+        "engine_analysis_duration_ms": 1.118,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 27,
+        "event_id": "18ac665dbfe550e899-00027",
+        "ingest_ms": 3.77,
+        "monitor_pass_ms": 16.24130000709556,
+        "engine_analysis_duration_ms": 1.392,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 28,
+        "event_id": "18ac665dbfe550e899-00028",
+        "ingest_ms": 2.8800000000000003,
+        "monitor_pass_ms": 13.827199989464134,
+        "engine_analysis_duration_ms": 1.105,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 29,
+        "event_id": "18ac665dbfe550e899-00029",
+        "ingest_ms": 3.323,
+        "monitor_pass_ms": 14.31659999070689,
+        "engine_analysis_duration_ms": 1.104,
+        "analysis_scope": "current_session",
+        "provisional": true
+      },
+      {
+        "seed": 3,
+        "index": 30,
+        "event_id": "18ac665dbfe550e899-00030",
+        "ingest_ms": 4.908,
+        "monitor_pass_ms": 17.139499977929518,
+        "engine_analysis_duration_ms": 1.187,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 31,
+        "event_id": "18ac665dbfe550e899-00031",
+        "ingest_ms": 2.605,
+        "monitor_pass_ms": 20.281199977034703,
+        "engine_analysis_duration_ms": 1.414,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 32,
+        "event_id": "18ac665dbfe550e899-00032",
+        "ingest_ms": 2.626,
+        "monitor_pass_ms": 16.994899982819334,
+        "engine_analysis_duration_ms": 1.144,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 33,
+        "event_id": "18ac665dbfe550e899-00033",
+        "ingest_ms": 4.655,
+        "monitor_pass_ms": 14.446699991822243,
+        "engine_analysis_duration_ms": 1.165,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 34,
+        "event_id": "18ac665dbfe550e899-00034",
+        "ingest_ms": 2.848,
+        "monitor_pass_ms": 15.428200014866889,
+        "engine_analysis_duration_ms": 1.18,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 35,
+        "event_id": "18ac665dbfe550e899-00035",
+        "ingest_ms": 4.756,
+        "monitor_pass_ms": 14.34189997962676,
+        "engine_analysis_duration_ms": 1.201,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 36,
+        "event_id": "18ac665dbfe550e899-00036",
+        "ingest_ms": 3.31,
+        "monitor_pass_ms": 17.661599995335564,
+        "engine_analysis_duration_ms": 1.328,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 37,
+        "event_id": "18ac665dbfe550e899-00037",
+        "ingest_ms": 6.763,
+        "monitor_pass_ms": 21.45679999375716,
+        "engine_analysis_duration_ms": 2.072,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 38,
+        "event_id": "18ac665dbfe550e899-00038",
+        "ingest_ms": 4.046,
+        "monitor_pass_ms": 18.078099994454533,
+        "engine_analysis_duration_ms": 1.592,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 39,
+        "event_id": "18ac665dbfe550e899-00039",
+        "ingest_ms": 5.535,
+        "monitor_pass_ms": 21.86539999092929,
+        "engine_analysis_duration_ms": 2.653,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 40,
+        "event_id": "18ac665dbfe550e899-00040",
+        "ingest_ms": 2.8939999999999997,
+        "monitor_pass_ms": 17.501599999377504,
+        "engine_analysis_duration_ms": 1.291,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 41,
+        "event_id": "18ac665dbfe550e899-00041",
+        "ingest_ms": 2.606,
+        "monitor_pass_ms": 15.684899990446866,
+        "engine_analysis_duration_ms": 1.293,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 42,
+        "event_id": "18ac665dbfe550e899-00042",
+        "ingest_ms": 5.681,
+        "monitor_pass_ms": 14.929399971151724,
+        "engine_analysis_duration_ms": 1.323,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 43,
+        "event_id": "18ac665dbfe550e899-00043",
+        "ingest_ms": 5.711,
+        "monitor_pass_ms": 17.214199993759394,
+        "engine_analysis_duration_ms": 1.49,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 44,
+        "event_id": "18ac665dbfe550e899-00044",
+        "ingest_ms": 4.347,
+        "monitor_pass_ms": 14.526200015097857,
+        "engine_analysis_duration_ms": 1.425,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 45,
+        "event_id": "18ac665dbfe550e899-00045",
+        "ingest_ms": 4.059,
+        "monitor_pass_ms": 15.666400024201721,
+        "engine_analysis_duration_ms": 1.545,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 46,
+        "event_id": "18ac665dbfe550e899-00046",
+        "ingest_ms": 3.432,
+        "monitor_pass_ms": 22.928499995032325,
+        "engine_analysis_duration_ms": 1.445,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 47,
+        "event_id": "18ac665dbfe550e899-00047",
+        "ingest_ms": 2.645,
+        "monitor_pass_ms": 18.505599990021437,
+        "engine_analysis_duration_ms": 1.415,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 48,
+        "event_id": "18ac665dbfe550e899-00048",
+        "ingest_ms": 2.971,
+        "monitor_pass_ms": 18.35389999905601,
+        "engine_analysis_duration_ms": 1.495,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 49,
+        "event_id": "18ac665dbfe550e899-00049",
+        "ingest_ms": 2.697,
+        "monitor_pass_ms": 15.868399990722537,
+        "engine_analysis_duration_ms": 1.448,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 50,
+        "event_id": "18ac665dbfe550e899-00050",
+        "ingest_ms": 2.882,
+        "monitor_pass_ms": 16.179900005226955,
+        "engine_analysis_duration_ms": 1.483,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 51,
+        "event_id": "18ac665dbfe550e899-00051",
+        "ingest_ms": 2.523,
+        "monitor_pass_ms": 19.238199980463833,
+        "engine_analysis_duration_ms": 1.819,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 52,
+        "event_id": "18ac665dbfe550e899-00052",
+        "ingest_ms": 2.702,
+        "monitor_pass_ms": 19.566600007237867,
+        "engine_analysis_duration_ms": 1.531,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 53,
+        "event_id": "18ac665dbfe550e899-00053",
+        "ingest_ms": 3.176,
+        "monitor_pass_ms": 21.797699999297038,
+        "engine_analysis_duration_ms": 1.536,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 54,
+        "event_id": "18ac665dbfe550e899-00054",
+        "ingest_ms": 3.448,
+        "monitor_pass_ms": 18.39579999796115,
+        "engine_analysis_duration_ms": 1.795,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 55,
+        "event_id": "18ac665dbfe550e899-00055",
+        "ingest_ms": 3.755,
+        "monitor_pass_ms": 18.922300019767135,
+        "engine_analysis_duration_ms": 1.616,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 56,
+        "event_id": "18ac665dbfe550e899-00056",
+        "ingest_ms": 4.725,
+        "monitor_pass_ms": 18.723399989539757,
+        "engine_analysis_duration_ms": 1.607,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 57,
+        "event_id": "18ac665dbfe550e899-00057",
+        "ingest_ms": 2.4819999999999998,
+        "monitor_pass_ms": 20.934699976351112,
+        "engine_analysis_duration_ms": 1.601,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 58,
+        "event_id": "18ac665dbfe550e899-00058",
+        "ingest_ms": 6.607,
+        "monitor_pass_ms": 19.054000003961846,
+        "engine_analysis_duration_ms": 1.632,
+        "analysis_scope": "current_session",
+        "provisional": false
+      },
+      {
+        "seed": 3,
+        "index": 59,
+        "event_id": "18ac665dbfe550e899-00059",
+        "ingest_ms": 5.851,
+        "monitor_pass_ms": 15.241999994032085,
+        "engine_analysis_duration_ms": 1.72,
+        "analysis_scope": "current_session",
+        "provisional": false
+      }
+    ],
+    "alert_latencies": [
+      {
+        "seed": 1,
+        "index": 6,
+        "rule_id": "RAPID_COOLANT_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 25.155
+      },
+      {
+        "seed": 1,
+        "index": 7,
+        "rule_id": "RAPID_OIL_TEMP_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 18.115
+      },
+      {
+        "seed": 1,
+        "index": 46,
+        "rule_id": "COOLANT_TEMP_HIGH",
+        "severity": "warning",
+        "publish_to_alert_ms": 17.906
+      },
+      {
+        "seed": 2,
+        "index": 6,
+        "rule_id": "RAPID_COOLANT_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 26.272
+      },
+      {
+        "seed": 2,
+        "index": 7,
+        "rule_id": "RAPID_OIL_TEMP_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 18.504
+      },
+      {
+        "seed": 2,
+        "index": 46,
+        "rule_id": "COOLANT_TEMP_HIGH",
+        "severity": "warning",
+        "publish_to_alert_ms": 49.772
+      },
+      {
+        "seed": 3,
+        "index": 6,
+        "rule_id": "RAPID_COOLANT_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 37.452
+      },
+      {
+        "seed": 3,
+        "index": 7,
+        "rule_id": "RAPID_OIL_TEMP_RISE",
+        "severity": "warning",
+        "publish_to_alert_ms": 54.309000000000005
+      },
+      {
+        "seed": 3,
+        "index": 46,
+        "rule_id": "COOLANT_TEMP_HIGH",
+        "severity": "warning",
+        "publish_to_alert_ms": 21.837
+      }
+    ],
+    "failures": []
+  },
+  "robustness": {
+    "provenance": "MEASURED (injected faults on the real ingestion path)",
+    "config": {
+      "dataset_id": "synthetic-pipeline-v1",
+      "seed": 7
+    },
+    "cases": [
+      {
+        "case": "clean_baseline",
+        "description": "5 distinct valid samples delivered once each",
+        "persisted": 5,
+        "expected_range": [
+          5,
+          5
+        ],
+        "passed": true,
+        "detail": "baseline: no duplicate loss, no drops"
+      },
+      {
+        "case": "duplicate_delivery",
+        "description": "the same (vehicle, event_id) delivered 5 times",
+        "persisted": 1,
+        "expected_range": [
+          1,
+          1
+        ],
+        "passed": true,
+        "detail": "idempotent on (vehicle_id, source_event_id)"
+      },
+      {
+        "case": "repeated_event_ids",
+        "description": "ids [a,b,a,b] replayed across separate flushes",
+        "persisted": 2,
+        "expected_range": [
+          2,
+          2
+        ],
+        "passed": true,
+        "detail": "cross-batch dedup holds"
+      },
+      {
+        "case": "out_of_order",
+        "description": "arrival order [3, 1, 2, 0], timestamp order 0..3",
+        "persisted": 4,
+        "expected_range": [
+          4,
+          4
+        ],
+        "passed": true,
+        "detail": "stored timestamps sorted == True"
+      },
+      {
+        "case": "delayed_message",
+        "description": "one sample stamped 42 min in the past",
+        "persisted": 2,
+        "expected_range": [
+          2,
+          2
+        ],
+        "passed": true,
+        "detail": "source timestamp preserved, not overwritten with arrival time"
+      },
+      {
+        "case": "missing_interval",
+        "description": "samples at -30,-29,-28,-1 s (a 27 s gap)",
+        "persisted": 4,
+        "expected_range": [
+          4,
+          4
+        ],
+        "passed": true,
+        "detail": "data-quality findings: ['LIMITED_DATA', 'LIVE_DATA_SUFFICIENCY', 'LOW_DATA_COVERAGE', 'TELEMETRY_GAP']"
+      },
+      {
+        "case": "malformed_payloads",
+        "description": "8 invalid envelopes (JSON/schema/tz/version/bounds) then 1 valid",
+        "persisted": 1,
+        "expected_range": [
+          1,
+          1
+        ],
+        "passed": true,
+        "detail": "invalid messages discarded; stream survived to persist the next valid one"
+      },
+      {
+        "case": "unknown_vehicle",
+        "description": "a valid envelope for an unregistered vehicle, then a known one",
+        "persisted": 1,
+        "expected_range": [
+          1,
+          1
+        ],
+        "passed": true,
+        "detail": "unknown vehicle rows persisted: 0"
+      },
+      {
+        "case": "transient_db_failure",
+        "description": "first 2 session acquisitions raise DatabaseError (retry_attempts=3)",
+        "persisted": 4,
+        "expected_range": [
+          4,
+          4
+        ],
+        "passed": true,
+        "detail": "session-factory calls: 6; all samples eventually persisted"
+      },
+      {
+        "case": "broker_restart",
+        "description": "broker killed and relaunched mid-stream, then more samples",
+        "persisted": 7,
+        "expected_range": [
+          4,
+          1000
+        ],
+        "passed": true,
+        "detail": "subscriber reconnected after 1.6s"
+      }
+    ]
+  }
+}

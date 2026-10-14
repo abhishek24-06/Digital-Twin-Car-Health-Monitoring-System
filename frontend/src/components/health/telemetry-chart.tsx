@@ -48,6 +48,77 @@ interface ChartRow extends Record<string, string | number | null> {
   ts: number;
 }
 
+export interface UnitAxisGroup {
+  /** Display unit shared by every metric on this axis ("" when unknown). */
+  unit: string;
+  metrics: string[];
+  /**
+   * Shared explicit domain, set only when every metric in the group declares
+   * the same one (e.g. the 0–100 percent metrics).
+   */
+  domain?: [number, number];
+}
+
+/**
+ * Group metrics by display unit so incompatible units never share a scale.
+ *
+ * The chart used to alternate series across two axes by position, which put
+ * RPM (0–8000) on the same auto domain as °C/V series and flattened them.
+ * Groups preserve selection order: the first group takes the left axis, the
+ * rest stack on the right.
+ */
+export function groupMetricsByUnit(metrics: readonly string[]): UnitAxisGroup[] {
+  const groups: UnitAxisGroup[] = [];
+  for (const key of metrics) {
+    const unit = metricMeta(key)?.unit ?? "";
+    let group = groups.find((candidate) => candidate.unit === unit);
+    if (!group) {
+      group = { unit, metrics: [] };
+      groups.push(group);
+    }
+    group.metrics.push(key);
+  }
+  return groups.map((group) => {
+    const domains = group.metrics.map((key) => metricMeta(key)?.domain);
+    const first = domains[0];
+    const shared =
+      first !== undefined &&
+      domains.every((domain) => domain?.[0] === first[0] && domain?.[1] === first[1])
+        ? first
+        : undefined;
+    return { ...group, domain: shared };
+  });
+}
+
+export function axisIdForUnit(unit: string): string {
+  return `unit:${unit}`;
+}
+
+/**
+ * Build chart rows oldest → newest from API samples (which arrive newest
+ * first). Non-numeric values become gaps (`connectNulls` bridges them).
+ */
+export function buildChartRows(
+  samples: readonly TelemetryResponse[],
+  metrics: readonly string[],
+): ChartRow[] {
+  return [...samples]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((sample) => {
+      const row: ChartRow = { ts: new Date(sample.timestamp).getTime() };
+      for (const key of metrics) {
+        const value = sample[key as keyof TelemetryResponse];
+        row[key] = typeof value === "number" ? value : null;
+      }
+      return row;
+    });
+}
+
+/** Shared tick format so every axis abbreviates large values the same way. */
+function formatAxisNumber(value: number): string {
+  return Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
+}
+
 function formatClock(ts: number, spanMinutes: number): string {
   const date = new Date(ts);
   if (spanMinutes > 720) {
@@ -75,24 +146,21 @@ export function TelemetryChart({
   className?: string;
   height?: number;
 }) {
-  const rows = React.useMemo<ChartRow[]>(() => {
-    return [...samples]
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .map((sample) => {
-        const row: ChartRow = { ts: new Date(sample.timestamp).getTime() };
-        for (const key of metrics) {
-          const value = sample[key as keyof TelemetryResponse];
-          row[key] = typeof value === "number" ? value : null;
-        }
-        return row;
-      });
-  }, [samples, metrics]);
+  const rows = React.useMemo<ChartRow[]>(
+    () => buildChartRows(samples, metrics),
+    [samples, metrics],
+  );
 
   const spanMinutes =
     rows.length > 1 ? (rows[rows.length - 1].ts - rows[0].ts) / 60_000 : 60;
 
   const activeMetrics = metrics.filter((key) =>
     rows.some((row) => typeof row[key] === "number"),
+  );
+
+  const unitGroups = React.useMemo(
+    () => groupMetricsByUnit(activeMetrics),
+    [activeMetrics],
   );
 
   if (rows.length === 0 || activeMetrics.length === 0) {
@@ -130,29 +198,29 @@ export function TelemetryChart({
             minTickGap={32}
           />
           <YAxis
-            yAxisId="left"
+            yAxisId={axisIdForUnit(unitGroups[0].unit)}
             stroke="var(--ink-subtle)"
             tick={{ fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={44}
-            domain={["auto", "auto"]}
-            tickFormatter={(value: number) =>
-              Math.abs(value) >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
-            }
+            domain={unitGroups[0].domain ?? ["auto", "auto"]}
+            tickFormatter={formatAxisNumber}
           />
-          {activeMetrics.length > 1 ? (
+          {unitGroups.slice(1).map((group) => (
             <YAxis
-              yAxisId="right"
+              key={axisIdForUnit(group.unit)}
+              yAxisId={axisIdForUnit(group.unit)}
               orientation="right"
               stroke="var(--ink-subtle)"
               tick={{ fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               width={40}
-              tickFormatter={(value: number) => String(value)}
+              domain={group.domain ?? ["auto", "auto"]}
+              tickFormatter={formatAxisNumber}
             />
-          ) : null}
+          ))}
 
           <RechartsTooltip
             content={
@@ -167,7 +235,7 @@ export function TelemetryChart({
             wrapperStyle={{ fontSize: 12 }}
           />
 
-          {activeMetrics.map((key, index) => (
+          {activeMetrics.map((key) => (
             <Line
               key={key}
               type="monotone"
@@ -181,8 +249,8 @@ export function TelemetryChart({
               activeDot={{ r: 3 }}
               connectNulls
               isAnimationActive={false}
-              // Alternate axes so overlapping ranges stay readable.
-              yAxisId={index % 2 === 0 ? "left" : "right"}
+              // One axis per display unit: rpm never shares a scale with °C/V.
+              yAxisId={axisIdForUnit(metricMeta(key)?.unit ?? "")}
             />
           ))}
         </LineChart>

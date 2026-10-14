@@ -20,6 +20,8 @@ interface EventTimelineProps {
   loadMore?: () => Promise<void>;
   onExport?: () => void;
   onClear?: () => void;
+  /** Message shown when there are no events to display for this scope. */
+  emptyHint?: string;
 }
 
 const WORKFLOW_COLORS: Record<WorkflowType, string> = {
@@ -42,7 +44,7 @@ const STATUS_COLORS: Record<WorkflowStatus, string> = {
   error: "bg-red-500",
 };
 
-function EventTimeline({ events, total, isLoading, loadMore, onExport, onClear }: EventTimelineProps) {
+function EventTimeline({ events, total, isLoading, loadMore, onExport, onClear, emptyHint }: EventTimelineProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
 
@@ -60,7 +62,7 @@ function EventTimeline({ events, total, isLoading, loadMore, onExport, onClear }
   }, [events, searchQuery]);
 
   return (
-    <div className="border-t border-line bg-surface-1">
+    <div data-testid="event-timeline" className="border-t border-line bg-surface-1">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 p-4 border-b border-line">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -88,6 +90,11 @@ function EventTimeline({ events, total, isLoading, loadMore, onExport, onClear }
         </div>
 
         <div className="flex items-center gap-2">
+          <span className="text-xs text-ink-subtle tabular-nums" data-testid="event-count">
+            {filteredEvents.length === total
+              ? `${total} event${total === 1 ? "" : "s"}`
+              : `${filteredEvents.length} of ${total} events`}
+          </span>
           {loadMore ? (
             <button
               onClick={loadMore}
@@ -128,7 +135,9 @@ function EventTimeline({ events, total, isLoading, loadMore, onExport, onClear }
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <span className="text-ink-subtle text-lg mb-2">No events found</span>
             <p className="text-sm text-ink-subtle">
-              {searchQuery ? "Try adjusting your search or filters" : "Events will appear here as the system runs"}
+              {searchQuery
+                ? "Try adjusting your search or filters"
+                : emptyHint ?? "Events will appear here as the system runs"}
             </p>
           </div>
         ) : (

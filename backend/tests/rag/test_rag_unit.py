@@ -14,12 +14,17 @@ import numpy as np
 import pytest
 
 from app.rag.chunking import approx_pages, chunk_by_structure
-from app.rag.embeddings import StubEmbeddingAdapter
+from app.rag.embeddings import StubEmbeddingAdapter, get_embedding_adapter
 from app.rag.parser.base import RAGParseError
 from app.rag.parser.docling import DOCLING_EXTENSIONS, get_parser_for
 from app.rag.parser.plain_text import parse_plain_text
 from app.rag.query_builder import build_plan
-from app.rag.reranker.base import StubRerankerAdapter, threshold_filter
+from app.rag.rag_service import RAGService, _run_blocking
+from app.rag.reranker.base import (
+    StubRerankerAdapter,
+    get_reranker_adapter,
+    threshold_filter,
+)
 from app.rag.retrieval import fusion_alpha, lexical_score, rerank_and_select
 from app.rag.schemas import RetrievedEvidence, VehicleScope
 from app.rag.scope import derive_tier, matches, tier_boost
@@ -155,6 +160,47 @@ def test_retrieval_rerank_and_select() -> None:
     assert out[0].rerank_score is not None
     assert lexical_score({"coolant"}, "coolant level") == 1.0
     assert 0.0 <= fusion_alpha() <= 1.0
+
+
+# --------------------------------------- adapter caching + off-loop execution
+
+
+def test_reranker_adapter_factory_returns_shared_instance() -> None:
+    """Separate request-scoped services must share one loaded adapter.
+
+    Regression: each ``RAGService()`` used to construct its own cross-encoder,
+    so every query paid a full weight reload on the event loop (~114 s rerank).
+    """
+    first = get_reranker_adapter(force_stub=True)
+    assert get_reranker_adapter(force_stub=True) is first
+    assert RAGService(stub_rerank=True)._reranker_adapter() is first
+    assert RAGService(stub_rerank=True)._reranker_adapter() is first
+
+
+def test_embedding_adapter_factory_returns_shared_instance() -> None:
+    """Same no-reload guarantee for the embedding backend."""
+    first = get_embedding_adapter(force_stub=True)
+    assert get_embedding_adapter(force_stub=True) is first
+    assert RAGService(stub_embeddings=True)._embedding_adapter() is first
+
+
+async def test_run_blocking_executes_off_the_event_loop() -> None:
+    """CPU-bound model work must not run on the loop thread.
+
+    Regression: synchronous encode/rerank calls stalled every other request,
+    stream, and the health-monitor tick on the worker for the whole query.
+    """
+    import threading
+
+    loop_thread = threading.get_ident()
+    seen: list[int] = []
+
+    def blocking() -> str:
+        seen.append(threading.get_ident())
+        return "done"
+
+    assert await _run_blocking(blocking) == "done"
+    assert seen and seen[0] != loop_thread
 
 
 # ------------------------------------------------------------------ parser

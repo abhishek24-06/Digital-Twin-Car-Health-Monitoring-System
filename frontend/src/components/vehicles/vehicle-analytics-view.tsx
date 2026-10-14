@@ -307,7 +307,7 @@ function bucketLabel(data: HistoricalAnalyticsResponse): string {
 
 function MetricTable({ data }: { data: HistoricalAnalyticsResponse }) {
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <div>
           <CardTitle>Metric aggregates</CardTitle>
@@ -383,7 +383,7 @@ function MetricTable({ data }: { data: HistoricalAnalyticsResponse }) {
 function RunSegments({ data }: { data: HistoricalAnalyticsResponse }) {
   if (data.run_segments.length === 0) {
     return (
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <div>
             <CardTitle>Run boundaries</CardTitle>
@@ -401,7 +401,7 @@ function RunSegments({ data }: { data: HistoricalAnalyticsResponse }) {
   }
 
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader>
         <div>
           <CardTitle>Run boundaries</CardTitle>

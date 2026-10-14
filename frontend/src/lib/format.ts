@@ -93,15 +93,19 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${hours}h ${minutes % 60}m`;
 }
 
-/** Metric-aware precision so 87.443°C does not pretend to be precise. */
+/** Metric-aware precision so 87.443°C does not pretend to be precise. Accepts
+ * both the backend unit spellings (`C`, `RPM` from `METRIC_UNITS`, e.g. alert
+ * evidence) and the frontend display spellings (`°C`, `rpm` from `METRICS`). */
 export function formatMetricValue(value: number | null | undefined, unit?: string): string {
   if (value === null || value === undefined) return "—";
   switch (unit) {
     case "C":
+    case "°C":
     case "V":
     case "%":
       return value.toFixed(1);
     case "RPM":
+    case "rpm":
       return Math.round(value).toLocaleString();
     case "km":
       return value.toFixed(1);

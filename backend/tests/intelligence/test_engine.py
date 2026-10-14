@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from app.intelligence.engine import HealthAnalysisEngine
+from app.intelligence.engine import HealthAnalysisEngine, compute_data_quality
 from app.intelligence.models import AnalysisWindow, TelemetryPoint
 
 VEHICLE_ID = uuid4()
@@ -377,3 +377,54 @@ def test_live_sufficiency_zero_samples_stays_no_data() -> None:
     assert context.live_sufficiency.sample_count == 0
     # No old snapshot is ever dressed up as a current-session verdict.
     assert context.provisional is False
+
+
+def test_engine_sixty_follows_deterministic_rules() -> None:
+    """End-to-end 60/100: coolant critical (temperature, 30) plus moderate
+    engine load warning (engine, 10) sums to a 40-point penalty."""
+    base = _healthy_base()
+    base["coolant_temperature"] = 115.0  # maximum > 110 -> critical
+    base["engine_load"] = 50.0  # mean in (40, 60] -> warning
+    samples = _points(base, count=61, start_seconds_ago=60.0)
+    context = HealthAnalysisEngine().analyze(
+        vehicle_id=VEHICLE_ID,
+        window=_window(),
+        samples=samples,
+        minimum_samples=10,
+        expected_interval_seconds=1.0,
+    )
+
+    rule_ids = {f.rule_id for f in context.findings}
+    assert rule_ids == {"COOLANT_TEMP_HIGH", "ENGINE_LOAD_HIGH"}
+    assert context.score_details.total_penalty == 40.0
+    assert context.health_score == 60.0
+    assert context.score_details.status == "attention"
+    assert context.health_status == "attention"
+    assert context.data_sufficiency == "sufficient_data"
+    assert context.provisional is False
+
+
+def test_data_quality_coverage_is_sample_fraction_capped() -> None:
+    """Coverage = samples present / samples expected, capped at 1.0."""
+    window = _window(minutes=1.0)  # 60 s window, 1 s cadence -> 60 expected
+    full = _points(_healthy_base(), count=61, start_seconds_ago=60.0)
+    quality = compute_data_quality(full, window, 1.0)
+    assert quality.expected_sample_count == 60
+    assert quality.sample_count == 61
+    assert quality.coverage_ratio == 1.0
+    assert quality.missing_sample_estimate == 0
+
+    sparse = _points(_healthy_base(), count=30, start_seconds_ago=60.0, step=2.0)
+    quality = compute_data_quality(sparse, window, 1.0)
+    assert quality.coverage_ratio == 0.5
+    assert quality.missing_sample_estimate == 30
+
+
+def test_data_quality_flags_out_of_order_timestamps() -> None:
+    """Persisted rows can arrive out of order; the flag must say so."""
+    window = _window(minutes=1.0)
+    samples = _points(_healthy_base(), count=10, start_seconds_ago=10.0)
+    assert compute_data_quality(samples, window, 1.0).timestamp_order_valid is True
+
+    shuffled = [samples[5], samples[0], *samples[1:5], *samples[6:]]
+    assert compute_data_quality(shuffled, window, 1.0).timestamp_order_valid is False

@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.core.rate_limit import KeyedRateLimitDependency
 from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_vehicle_health_service
 from app.intelligence.models import HealthContext
@@ -15,10 +16,41 @@ from app.schemas.vehicle_health import (
     LiveFreshnessState,
     LiveHealthStatusResponse,
 )
+from app.services.analysis_coordinator import AnalysisCoordinator
 from app.services.simulation_manager import get_simulation_manager
 from app.services.vehicle_health_service import VehicleHealthService
 
 router = APIRouter()
+
+#: Per-authenticated-user budget for the manual analysis trigger. The trigger
+#: costs two wide telemetry range scans plus an analysis and a snapshot write,
+#: so a single client must not be able to amplify database load by hammering it.
+_analysis_rate_limit = KeyedRateLimitDependency(
+    "analysis",
+    settings_prefix="analysis_rate_limit",
+    key_of=lambda user: f"user:{getattr(user, 'id', 'unknown')}",
+    detail="Too many health reports requested; wait before generating another.",
+)
+
+#: Process-local coalescer for identical concurrent analyses.
+_analysis_coordinator = AnalysisCoordinator()
+
+
+def get_analysis_coordinator() -> AnalysisCoordinator:
+    """The process-wide analysis coordinator (overridable in tests)."""
+    return _analysis_coordinator
+
+
+def _analysis_key(vehicle_id: UUID, user: User, window_minutes: int | None) -> tuple:
+    # Ownership is enforced inside the service; keying by the caller guarantees
+    # two different users can never share (and thus leak) one another's report.
+    return (user.id, vehicle_id, window_minutes)
+
+
+async def _limit_analysis(
+    user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    _analysis_rate_limit.check(user)
 
 
 @router.post(
@@ -33,17 +65,24 @@ router = APIRouter()
         "time and may span several simulator runs and legacy (run-less) rows; it "
         "is never presented as current health. For the active current-session "
         "assessment use GET /health/live. Optionally override the analysis "
-        "window size with window_minutes."
+        "window size with window_minutes. Per-user rate limited; identical "
+        "concurrent requests are coalesced into a single analysis."
     ),
 )
 async def analyze_vehicle_health(
     vehicle_id: UUID,
     vehicle_health_service: Annotated[VehicleHealthService, Depends(get_vehicle_health_service)],
     user: Annotated[User, Depends(get_current_user)],
+    _rate_limit: Annotated[None, Depends(_limit_analysis)],
     window_minutes: Annotated[int | None, Query(ge=1, le=1440)] = None,
 ) -> HealthContextResponse:
-    snapshot = await vehicle_health_service.analyze_vehicle_for_user(
-        vehicle_id, user, window_minutes=window_minutes
+    async def _run():
+        return await vehicle_health_service.analyze_vehicle_for_user(
+            vehicle_id, user, window_minutes=window_minutes
+        )
+
+    snapshot = await get_analysis_coordinator().run(
+        _analysis_key(vehicle_id, user, window_minutes), _run
     )
     return HealthContextResponse.model_validate(snapshot.context_json)
 

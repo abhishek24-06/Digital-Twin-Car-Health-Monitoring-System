@@ -682,7 +682,7 @@ async def test_start_health_monitor_is_a_no_op_when_disabled() -> None:
 
 
 async def test_start_health_monitor_creates_a_cancellable_task(
-    monkeypatch, monitor_settings: Settings
+    monkeypatch, monitor_settings: Settings, test_app_engine
 ) -> None:
     import app.main as main_module
 
