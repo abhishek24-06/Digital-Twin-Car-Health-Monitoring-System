@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
-import { NavLinks } from "@/components/layout/nav-items";
+import { HeaderNav, NavLinks } from "@/components/layout/nav-items";
 import { VehicleSelector } from "@/components/layout/vehicle-selector";
 import { ThemeToggle, UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const closeMobileNav = React.useCallback(() => setMobileNavOpen(false), []);
 
-  // Simulation Control drives one simulator per vehicle and always shows every
-  // vehicle, so the single-vehicle header selector has no effect there. Hide it
-  // on that route only; every other page keeps the global selector.
-  const showVehicleSelector = !(
-    pathname === "/simulations" || Boolean(pathname?.startsWith("/simulations/"))
+  // Simulation Control drives one simulator per vehicle and the dashboard is a
+  // fleet-level overview; neither is scoped to a single vehicle, so the
+  // single-vehicle header selector would be misleading there. Hide it on those
+  // routes only; every other page keeps the global selector.
+  const fleetLevelRoutes = ["/simulations", "/dashboard"];
+  const showVehicleSelector = !fleetLevelRoutes.some(
+    (route) => pathname === route || Boolean(pathname?.startsWith(`${route}/`)),
   );
 
   // Escape closes the drawer; body scroll is locked while it is open.
@@ -136,6 +138,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-2 scrollbar-slim">
+              {/* The section tabs live in the header on desktop; below `md`
+                  they are promoted here so every destination stays reachable. */}
+              <HeaderNav
+                orientation="vertical"
+                onNavigate={closeMobileNav}
+                className="md:hidden"
+              />
+              <div className="my-2 h-px bg-[color:var(--line)] md:hidden" />
               <NavLinks onNavigate={closeMobileNav} />
             </div>
           </div>
@@ -171,8 +181,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </>
           ) : null}
 
-          <div className="ml-auto flex items-center gap-1.5">
+          {/* Section navigation sits in the header immediately to the left of
+              the Admin profile; the theme toggle stays just left of it. Below
+              `md` the tabs are rendered in the navigation drawer instead so
+              they never overlap the profile. */}
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
+            <HeaderNav className="hidden md:flex" />
             <UserMenu />
           </div>
         </header>

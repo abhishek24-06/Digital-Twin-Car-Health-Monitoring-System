@@ -5,6 +5,7 @@ from app.api.routes import (
     agent,
     alerts,
     auth,
+    fleet,
     health,
     historical_analytics,
     rag,
@@ -54,6 +55,7 @@ api_router.include_router(
 )
 api_router.include_router(rag.router, prefix="/rag", tags=["RAG"])
 api_router.include_router(admin_rag.router, prefix="/admin", tags=["Admin RAG"])
+api_router.include_router(fleet.router, prefix="/fleet", tags=["Fleet"])
 api_router.include_router(workflow.router, prefix="", tags=["Workflow"])
 api_router.include_router(
     alerts.router,

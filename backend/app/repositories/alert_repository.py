@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import ALERT_ACTIVE_STATUSES, Alert, AlertEvent
+
+
+class ActiveAlertCounts(NamedTuple):
+    """Active (open + acknowledged) alert tallies for one vehicle."""
+
+    active: int
+    critical: int
+    warning: int
 
 
 class AlertRepository:
@@ -44,6 +53,38 @@ class AlertRepository:
         )
         result = await self._session.scalars(statement)
         return list(result.all())
+
+    async def count_active_by_vehicles(
+        self, vehicle_ids: list[UUID]
+    ) -> dict[UUID, ActiveAlertCounts]:
+        """Active-alert tallies per vehicle, in a single round trip.
+
+        ``FILTER`` aggregates avoid loading alert rows just to count them, so a
+        fleet view stays cheap no matter how many alerts exist. Vehicles with no
+        active alert are absent from the map.
+        """
+        if not vehicle_ids:
+            return {}
+        statement = (
+            select(
+                Alert.vehicle_id,
+                func.count().label("active"),
+                func.count().filter(Alert.severity == "critical").label("critical"),
+                func.count().filter(Alert.severity == "warning").label("warning"),
+            )
+            .where(
+                Alert.vehicle_id.in_(vehicle_ids),
+                Alert.status.in_(ALERT_ACTIVE_STATUSES),
+            )
+            .group_by(Alert.vehicle_id)
+        )
+        rows = await self._session.execute(statement)
+        return {
+            vehicle_id: ActiveAlertCounts(
+                active=int(active), critical=int(critical), warning=int(warning)
+            )
+            for vehicle_id, active, critical, warning in rows.all()
+        }
 
     async def list_by_vehicle(
         self,

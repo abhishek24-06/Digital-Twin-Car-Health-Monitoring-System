@@ -9,7 +9,7 @@ caller.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -35,13 +35,10 @@ from app.services.simulation_manager import (
     SimulationStatus,
     get_simulation_manager,
 )
+from app.services.simulation_state import (
+    derive_simulation_state as _derive_state,
+)
 from app.services.subscriber_manager import SubscriberSupervisor, get_subscriber_supervisor
-from app.services.telemetry_freshness import (
-    STALE_AFTER_SECONDS as _STALE_AFTER_SECONDS,
-)
-from app.services.telemetry_freshness import (
-    STARTUP_BUFFER_SECONDS as _STARTUP_BUFFER_SECONDS,
-)
 from app.services.vehicle_access import ensure_vehicle_access
 from app.services.vehicle_service import VehicleService
 from app.services.workflow_event_bus import publish_workflow_event
@@ -74,64 +71,6 @@ def _to_response(
 
 async def _last_telemetry_at(session: AsyncSession, vehicle_id: UUID) -> datetime | None:
     return (await TelemetryRepository(session).get_latest_timestamps([vehicle_id])).get(vehicle_id)
-
-
-def _derive_state(
-    simulation: SimulationStatus,
-    last_telemetry_at: datetime | None,
-    subscriber_running: bool,
-    *,
-    now: datetime | None = None,
-) -> tuple[SimulationState, str | None]:
-    """Truthful status for a vehicle.
-
-    The manager's lifecycle state is reconciled against the pipeline: a
-    started process that cannot possibly be delivering telemetry (subscriber
-    offline, or no row in the database while the simulator has been up for
-    longer than the warm-up window) is reported as ``degraded`` with a
-    self-explanatory reason, never as a hollow "running".
-    """
-    lifecycle = simulation.status
-    if lifecycle not in ("starting", "running"):
-        return lifecycle, simulation.error
-    if not subscriber_running:
-        return (
-            "degraded",
-            "Telemetry ingestion is offline: the backend subscriber is not running, "
-            "so simulator output is not reaching the database.",
-        )
-    if lifecycle == "running" and _telemetry_is_stale(simulation, last_telemetry_at, now=now):
-        return "degraded", _stale_reason(last_telemetry_at)
-    return lifecycle, simulation.error
-
-
-def _telemetry_is_stale(
-    simulation: SimulationStatus,
-    last_telemetry_at: datetime | None,
-    *,
-    now: datetime | None = None,
-) -> bool:
-    now = now or datetime.now(UTC)
-    if simulation.started_at is not None:
-        uptime = (now - simulation.started_at).total_seconds()
-        if uptime < _STARTUP_BUFFER_SECONDS:
-            return False
-    if last_telemetry_at is None:
-        return True
-    return (now - last_telemetry_at).total_seconds() > _STALE_AFTER_SECONDS
-
-
-def _stale_reason(last_telemetry_at: datetime | None) -> str:
-    if last_telemetry_at is None:
-        return (
-            "Simulator is running but no telemetry has reached the database yet. "
-            "Check the MQTT broker and the backend subscriber."
-        )
-    return (
-        f"Simulator is running but the newest telemetry is from "
-        f"{last_telemetry_at.isoformat()} -- the feed has gone stale. Check the MQTT "
-        "broker and the backend subscriber."
-    )
 
 
 @vehicle_simulation_router.post(

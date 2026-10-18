@@ -1094,3 +1094,80 @@ export interface HealthDbResponse {
   service: string;
   database: string;
 }
+
+/* ---------------------------------------------------------------- */
+/* Fleet overview                                                    */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Telemetry freshness for one vehicle, classified by the backend.
+ *
+ * `recent` and `stale` are relative to the backend's telemetry window;
+ * `no_data` means the vehicle never persisted a sample; `unknown` is reserved
+ * for a timestamp that could not be interpreted and is never a stand-in for
+ * "we did not check".
+ */
+export type TelemetryFreshness = "recent" | "stale" | "no_data" | "unknown";
+
+/** How current a stored health assessment is relative to the monitor cadence. */
+export type AssessmentFreshness = "fresh" | "stale" | "none";
+
+/** The most recent stored assessment. Historical evidence, always timestamped. */
+export interface FleetAssessmentSummary {
+  health_status: HealthStatus;
+  /**
+   * The vehicle-condition rating when `health_status` is a data-state label
+   * (e.g. `limited_data` with a `critical` provisional rating). Null otherwise.
+   */
+  provisional_rating: HealthStatus | null;
+  health_score: number | null;
+  confidence: number | null;
+  generated_at: IsoDateTime;
+  provisional: boolean;
+  data_sufficiency: DataSufficiency | null;
+  analysis_scope: AnalysisScope | null;
+  sample_count: number | null;
+}
+
+/** One fleet row: identity, simulator state, freshness and assessment. */
+export interface FleetVehicleSummary {
+  vehicle_id: UUID;
+  vin: string;
+  make: string;
+  model: string;
+  year: number;
+  engine_type: string | null;
+  status: string;
+  simulation_state: SimulationState;
+  simulation_scenario: SimulationScenario | null;
+  simulation_started_at: IsoDateTime | null;
+  simulation_error: string | null;
+  last_telemetry_at: IsoDateTime | null;
+  telemetry_freshness: TelemetryFreshness;
+  assessment: FleetAssessmentSummary | null;
+  assessment_freshness: AssessmentFreshness;
+  open_alerts: number;
+  critical_open_alerts: number;
+  warning_open_alerts: number;
+  requires_attention: boolean;
+}
+
+/** Fleet KPI counts, each derived from one documented signal. */
+export interface FleetTotals {
+  vehicles: number;
+  vehicles_with_recent_telemetry: number;
+  vehicles_requiring_attention: number;
+  vehicles_with_open_alerts: number;
+  active_simulations: number;
+  open_alerts: number;
+  critical_open_alerts: number;
+}
+
+/** Single-round-trip fleet snapshot backing the dashboard. */
+export interface FleetOverviewResponse {
+  generated_at: IsoDateTime;
+  telemetry_stale_after_seconds: number;
+  assessment_stale_after_seconds: number;
+  totals: FleetTotals;
+  vehicles: FleetVehicleSummary[];
+}

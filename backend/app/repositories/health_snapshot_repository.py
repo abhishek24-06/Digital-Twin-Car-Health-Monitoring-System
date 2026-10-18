@@ -35,6 +35,30 @@ class HealthSnapshotRepository:
         )
         return await self._session.scalar(statement)
 
+    async def get_latest_by_vehicles(
+        self, vehicle_ids: list[UUID]
+    ) -> dict[UUID, HealthSnapshot]:
+        """Most recent snapshot per vehicle, in a single round trip.
+
+        Uses PostgreSQL ``DISTINCT ON`` against the existing
+        ``(vehicle_id, generated_at)`` index so a fleet view never has to issue
+        one query per vehicle. Vehicles with no snapshot are absent.
+        """
+        if not vehicle_ids:
+            return {}
+        statement = (
+            select(HealthSnapshot)
+            .where(HealthSnapshot.vehicle_id.in_(vehicle_ids))
+            .distinct(HealthSnapshot.vehicle_id)
+            .order_by(
+                HealthSnapshot.vehicle_id,
+                HealthSnapshot.generated_at.desc(),
+                HealthSnapshot.id.desc(),
+            )
+        )
+        result = await self._session.scalars(statement)
+        return {snapshot.vehicle_id: snapshot for snapshot in result.all()}
+
     async def list_by_vehicle(
         self,
         vehicle_id: UUID,

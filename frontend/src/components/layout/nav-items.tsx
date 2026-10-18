@@ -29,18 +29,17 @@ export interface NavItem {
   adminOnly?: boolean;
 }
 
-export const NAV_ITEMS: readonly NavItem[] = [
+/**
+ * The four fleet-level sections promoted into the persistent top header. These
+ * are the primary destinations; the sidebar deliberately does **not** repeat
+ * them, so a page is never listed twice.
+ */
+export const SECTION_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard",
-    label: "Dashboard",
+    label: "Fleet",
     icon: LayoutDashboard,
-    description: "Fleet overview and current health",
-  },
-  {
-    href: "/vehicles",
-    label: "My Vehicles",
-    icon: Car,
-    description: "Register and manage vehicles",
+    description: "Fleet-level health, telemetry and attention",
   },
   {
     href: "/simulations",
@@ -56,9 +55,24 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     href: "/rag",
-    label: "Manufacturer Guidance",
+    label: "Knowledge Search",
     icon: BookOpen,
     description: "Search ingested documentation",
+  },
+];
+
+/**
+ * Sidebar destinations: only the account-scoped pages the header does not
+ * already provide. `/simulations`, `/workflow`, `/rag` and `/dashboard` used to
+ * live here too; they now live in the header so the same link is not rendered
+ * twice.
+ */
+export const NAV_ITEMS: readonly NavItem[] = [
+  {
+    href: "/vehicles",
+    label: "My Vehicles",
+    icon: Car,
+    description: "Register and manage vehicles",
   },
   {
     href: "/profile",
@@ -88,13 +102,94 @@ export const VEHICLE_TABS = [
   { href: "/alerts", label: "Alerts", icon: Bell },
 ] as const;
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  if (href === "/vehicles") {
-    return pathname === "/vehicles" || pathname.startsWith("/vehicles/");
-  }
-  if (href === "/workflow") return pathname === "/workflow";
-  return pathname === href || pathname.startsWith(`${href}/`);
+/**
+ * Single source of truth for "which nav entry is the current page", used by
+ * both the header tabs and the sidebar. The active state is always derived from
+ * the URL, never stored separately, so a refresh or a deep link cannot leave it
+ * out of sync.
+ *
+ * Nested routes keep their parent active (e.g. `/vehicles/<id>/health` keeps
+ * My Vehicles active), except the fleet overview, which is a leaf route and must
+ * not light up for unrelated paths. `/admin/rag` is a distinct page and does not
+ * activate the Knowledge Search tab.
+ */
+export function isNavActive(pathname: string | null | undefined, href: string): boolean {
+  if (!pathname) return false;
+  if (pathname === href) return true;
+  if (href === "/dashboard") return false;
+  return pathname.startsWith(`${href}/`);
+}
+
+/**
+ * Horizontal section tabs for the top header, plus a vertical variant reused by
+ * the mobile navigation drawer. The active tab is derived from the current
+ * route via `isNavActive`.
+ */
+export function HeaderNav({
+  onNavigate,
+  className,
+  orientation = "horizontal",
+}: {
+  onNavigate?: () => void;
+  className?: string;
+  orientation?: "horizontal" | "vertical";
+}) {
+  const pathname = usePathname();
+  const isVertical = orientation === "vertical";
+
+  return (
+    <nav
+      aria-label="Main sections"
+      className={cn(
+        "flex",
+        isVertical
+          ? "flex-col gap-0.5"
+          : "min-w-0 flex-row items-center gap-0.5 overflow-x-auto scrollbar-slim",
+        className,
+      )}
+    >
+      {SECTION_ITEMS.map((item) => {
+        const active = isNavActive(pathname, item.href);
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            title={item.label}
+            aria-label={item.label}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "group flex shrink-0 items-center rounded-md text-sm transition-colors",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal-400",
+              isVertical ? "w-full gap-3 px-3 py-2" : "gap-2 px-2 py-1.5",
+              active
+                ? "bg-surface-3 text-ink shadow-[var(--shadow-panel)]"
+                : "text-ink-muted hover:bg-surface-2 hover:text-ink",
+            )}
+          >
+            <Icon
+              className={cn(
+                "size-4 shrink-0",
+                active ? "text-signal-400" : "text-ink-subtle group-hover:text-ink-muted",
+              )}
+              aria-hidden
+            />
+            {/* Desktop tabs collapse to icons below xl so the header never
+                overlaps the profile at narrower widths; the label is always the
+                accessible name via `aria-label`. */}
+            <span
+              className={cn(
+                isVertical ? "truncate" : "hidden whitespace-nowrap xl:inline",
+              )}
+            >
+              {item.label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
 }
 
 export function NavLinks({
@@ -114,7 +209,7 @@ export function NavLinks({
       className={cn("flex flex-col gap-0.5", className)}
     >
       {items.map((item) => {
-        const active = isActive(pathname, item.href);
+        const active = isNavActive(pathname, item.href);
         const Icon = item.icon;
         return (
           <Link

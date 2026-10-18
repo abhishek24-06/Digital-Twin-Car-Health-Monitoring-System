@@ -40,4 +40,12 @@ export const queryKeys = {
   ragHealth: ["rag-health"] as const,
   ragDocuments: ["rag-documents"] as const,
   ragDocument: (documentId: string) => ["rag-documents", documentId] as const,
+
+  /** Fleet-level read models (the dashboard). */
+  fleetOverview: ["fleet-overview"] as const,
+
+  /** Platform probes and workflow status, keyed apart so one can fail alone. */
+  apiLiveness: ["system", "api-liveness"] as const,
+  databaseHealth: ["system", "database-health"] as const,
+  workflowSystemStatus: ["system", "workflow-status"] as const,
 };

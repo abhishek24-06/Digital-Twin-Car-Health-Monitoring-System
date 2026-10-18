@@ -79,6 +79,36 @@ async def test_get_latest_none_when_empty(session: AsyncSession, vehicle_id: UUI
     assert await repo.get_latest_by_vehicle(vehicle_id) is None
 
 
+async def test_get_latest_by_vehicles_picks_newest_per_vehicle(
+    session: AsyncSession, vehicle_id: UUID
+) -> None:
+    repo = HealthSnapshotRepository(session)
+    vehicle_service = VehicleService(session, VehicleRepository(session))
+    other = await vehicle_service.create_vehicle(
+        VehicleCreate(vin=unique_vin(), make="Honda", model="Civic", year=2023)
+    )
+    empty = await vehicle_service.create_vehicle(
+        VehicleCreate(vin=unique_vin(), make="Ford", model="Focus", year=2022)
+    )
+
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    await repo.create(make_snapshot(vehicle_id, base))
+    newest = await repo.create(make_snapshot(vehicle_id, base + timedelta(minutes=30)))
+    other_snapshot = await repo.create(make_snapshot(other.id, base))
+    await session.commit()
+
+    found = await repo.get_latest_by_vehicles([vehicle_id, other.id, empty.id])
+
+    assert set(found) == {vehicle_id, other.id}
+    assert found[vehicle_id].id == newest.id
+    assert found[other.id].id == other_snapshot.id
+
+
+async def test_get_latest_by_vehicles_empty_input(session: AsyncSession) -> None:
+    repo = HealthSnapshotRepository(session)
+    assert await repo.get_latest_by_vehicles([]) == {}
+
+
 async def test_list_pagination_newest_first(session: AsyncSession, vehicle_id: UUID) -> None:
     repo = HealthSnapshotRepository(session)
     base = datetime(2026, 1, 1, tzinfo=UTC)
