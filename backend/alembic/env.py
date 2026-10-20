@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -8,6 +10,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import get_settings
 from app.models import Base
+
+# ``alembic/`` is not an importable package (no ``__init__.py``); env.py is
+# loaded as a script, so make its own directory importable for the sibling
+# comparison-policy module.
+sys.path.insert(0, os.path.dirname(__file__))
+from schema_comparison import include_object  # noqa: E402
 
 config = context.config
 
@@ -35,7 +43,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()
